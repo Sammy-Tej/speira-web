@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spiro Lab</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+%%ICONS%%
+<header class="top">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 4c6 0 9 5 7 10s-9 6-12 2-1-10 5-10 10 4 9 11-8 12-15 10S4 23 8 15 20 4 20 4z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+    <span>Spiro Lab</span><em>working title</em>
+  </div>
+  <div class="hist">
+    <button class="ico" id="undo" type="button" title="Undo (⌘Z)" aria-label="Undo"><svg><use href="#i-arrow-counter-clockwise"/></svg></button>
+    <button class="ico" id="redo" type="button" title="Redo (⇧⌘Z)" aria-label="Redo"><svg><use href="#i-arrow-clockwise"/></svg></button>
+  </div>
+  <div class="export">
+    <label class="check"><input type="checkbox" id="transparent"> Transparent background</label>
+    <button class="btn" id="svg" type="button" title="Save as SVG (⌘S)"><svg><use href="#i-download-simple"/></svg>SVG</button>
+    <div class="split">
+      <select id="pngSize" aria-label="PNG size">
+        <option value="1024">1024 px</option><option value="2048">2048 px</option><option value="4096">4096 px</option><option value="8192">8192 px</option>
+      </select>
+      <button class="btn" id="png" type="button" title="Save as PNG (⇧⌘S)"><svg><use href="#i-download-simple"/></svg>PNG</button>
+    </div>
+  </div>
+</header>
+
+<main class="app">
+  <section class="stage" aria-label="Paper">
+    <canvas id="paper" aria-label="Drawing paper. Drag to roll the wheel."></canvas>
+    <p class="hint">Drag on the paper to roll the wheel · click a hole to move the pen · <kbd>Space</kbd> draw · <kbd>Enter</kbd> new layer</p>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </section>
+
+  <aside class="panel">
+    <section class="card draw">
+      <div class="drawrow">
+        <button class="btn primary" id="play" type="button"><svg><use href="#i-play"/></svg><span>Draw</span></button>
+        <button class="btn" id="finish" type="button" title="Complete the pattern (F)"><svg><use href="#i-check-circle"/></svg>Finish</button>
+        <button class="btn" id="newLayer" type="button" title="Keep this pass and start a new one (Enter)"><svg><use href="#i-plus"/></svg>New layer</button>
+      </div>
+      <div class="prog"><div id="progress"></div></div>
+      <div class="stats">
+        <span><b id="petals">0</b> petals</span>
+        <span>closes after <b id="laps">0</b> laps</span>
+        <span><b id="progOut">0%</b> drawn</span>
+      </div>
+      <label class="row"><span>Speed</span><input type="range" id="speed" min="0" max="100" step="1"><output id="speedOut"></output></label>
+    </section>
+
+    <section class="card">
+      <h2>Pieces</h2>
+      <div class="field"><span class="lbl">Ring <small>inner / outer teeth</small></span><div class="chips two" id="rings"></div></div>
+      <div class="field"><span class="lbl">Wheel rolls</span><div class="chips two" id="modes"></div></div>
+      <div class="field"><span class="lbl">Wheel <small>teeth</small></span><div class="chips grid" id="wheels"></div></div>
+      <label class="row"><span>Pen hole</span><input type="range" id="hole" min="1" max="10" step="1"><output id="holeOut"></output></label>
+      <div class="row"><span>Start shift</span>
+        <div class="stepper"><button class="ico" id="shiftDown" type="button" aria-label="Shift one tooth back">−</button><output id="shiftOut"></output><button class="ico" id="shiftUp" type="button" aria-label="Shift one tooth forward">+</button></div><span></span></div>
+      <label class="row"><span>Auto shift</span><input type="number" id="autoShift" min="0" max="99" step="1" inputmode="numeric"><small class="unit">teeth per new layer</small></label>
+      <label class="row"><span>Kit size</span><input type="range" id="pitch" min="8" max="26" step="1"><output id="pitchOut"></output></label>
+      <div class="btnrow">
+        <button class="btn sm" id="moveRing" type="button" aria-pressed="false" title="Drag to place the ring (or hold Alt and drag)"><svg><use href="#i-crosshair"/></svg>Move ring</button>
+        <button class="btn sm" id="centre" type="button">Centre ring</button>
+        <button class="btn sm" id="surprise" type="button"><svg><use href="#i-shuffle"/></svg>Surprise me</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Pen</h2>
+      <div class="swatches" id="pens"></div>
+      <label class="row"><span>Custom colour</span><input type="color" id="penColor"><span></span></label>
+      <label class="row"><span>Thickness</span><input type="range" id="width" min=".4" max="10" step=".1"><output id="widthOut"></output></label>
+      <label class="row"><span>Opacity</span><input type="range" id="opacity" min=".1" max="1" step=".05"><output id="opacityOut"></output></label>
+    </section>
+
+    <section class="card">
+      <h2>Paper</h2>
+      <div class="swatches" id="papers"></div>
+      <label class="row"><span>Custom colour</span><input type="color" id="bgColor"><span></span></label>
+      <label class="check"><input type="checkbox" id="stencil"> Show the pieces <small>(H)</small></label>
+    </section>
+
+    <section class="card">
+      <h2>Layers <small id="layerCount"></small></h2>
+      <ul class="layers" id="layers"></ul>
+      <button class="btn sm danger" id="clear" type="button">Clear paper</button>
+    </section>
+  </aside>
+</main>
+<script src="js/geometry.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
