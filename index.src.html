@@ -21,9 +21,7 @@
     <label class="check"><input type="checkbox" id="transparent"> Transparent background</label>
     <button class="btn" id="svg" type="button" title="Save as SVG (⌘S)"><svg><use href="#i-download-simple"/></svg>SVG</button>
     <div class="split">
-      <select id="pngSize" aria-label="PNG size">
-        <option value="1024">1024 px</option><option value="2048">2048 px</option><option value="4096">4096 px</option><option value="8192">8192 px</option>
-      </select>
+      <select id="pngSize" aria-label="PNG resolution"></select>
       <button class="btn" id="png" type="button" title="Save as PNG (⇧⌘S)"><svg><use href="#i-download-simple"/></svg>PNG</button>
     </div>
   </div>
@@ -32,6 +30,7 @@
 <main class="app">
   <section class="stage" aria-label="Paper">
     <canvas id="paper" aria-label="Drawing paper. Drag to roll the wheel."></canvas>
+    <button class="stagebtn" id="pieceToggle" type="button" aria-pressed="true" title="Show or hide the pieces (H)"><svg><use href="#i-eye"/></svg><span>Pieces shown</span></button>
     <p class="hint">Drag on the paper to roll the wheel · click a hole to move the pen · <kbd>Space</kbd> draw · <kbd>Enter</kbd> new layer</p>
     <div id="toast" role="status" aria-live="polite"></div>
   </section>
@@ -87,9 +86,16 @@
 
     <section class="card">
       <h2>Paper</h2>
+      <div class="field"><span class="lbl">Size</span><select id="paperPreset" class="wide"></select></div>
+      <div class="custompaper" id="customPaper" hidden>
+        <input type="number" id="pw" step="any" aria-label="Paper width"><span>×</span><input type="number" id="ph" step="any" aria-label="Paper height">
+        <select id="punit" aria-label="Unit"><option value="mm">mm</option><option value="in">in</option><option value="px">px</option></select>
+      </div>
+      <div class="paperrow"><button class="btn sm" id="orient" type="button">Rotate page</button><small id="paperDims"></small></div>
+      <div class="field"><span class="lbl">Texture</span><div class="chips texrow" id="textures"></div></div>
       <div class="swatches" id="papers"></div>
       <label class="row"><span>Custom colour</span><input type="color" id="bgColor"><span></span></label>
-      <label class="check"><input type="checkbox" id="stencil"> Show the pieces <small>(H)</small></label>
+      <label class="check"><input type="checkbox" id="autoHide"> Hide the pieces when a pattern finishes</label>
       <div class="field"><span class="lbl">Piece colours</span><div class="tints" id="tints"></div></div>
     </section>
 
@@ -102,6 +108,7 @@
 </main>
 <script src="js/geometry.js"></script>
 <script src="js/pens.js"></script>
+<script src="js/paper.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>

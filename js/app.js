@@ -8,15 +8,16 @@ const PAPERS = [['#ffffff', 'White'], ['#f6f1e7', 'Cream'], ['#e8d8b9', 'Kraft']
 
 // ---------- state ----------
 const S = { ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0, pen: 'ballpoint', rainbow: false };
-const P = { bg: '#ffffff', stencil: true, speed: .6, pngSize: 4096, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic' };
+const P = { bg: '#ffffff', stencil: true, autoHide: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic', paper: { ...DEFAULT_PAPER } };
+const PW = () => paperWorld(P.paper)[0], PH = () => paperWorld(P.paper)[1];
 let layers = [], cur = null, playing = false, uid = 1;
 let past = [], future = [];
 
 const newLayer = () => ({ id: uid++, ...S, a: 0, b: 0, pos: 0, visible: true });
 const inked = L => L && L.b - L.a > 1e-6;
 const strip = L => { const { _tr, _key, _plan, _pk, ...rest } = L; return rest; };
-const snapshot = () => JSON.stringify({ layers: layers.map(strip), cur: strip(cur) });
-function restore(json) { const o = JSON.parse(json); layers = o.layers; cur = o.cur; uid = Math.max(uid, ...layers.map(l => l.id + 1), cur.id + 1); Object.assign(S, pickS(cur)); syncControls(); dirty(); }
+const snapshot = () => JSON.stringify({ layers: layers.map(strip), cur: strip(cur), paper: P.paper });
+function restore(json) { const o = JSON.parse(json); layers = o.layers; cur = o.cur; if (o.paper) { P.paper = o.paper; fit(); ringKey = ''; } uid = Math.max(uid, ...layers.map(l => l.id + 1), cur.id + 1); Object.assign(S, pickS(cur)); syncControls(); dirty(); }
 const pickS = L => Object.fromEntries(Object.keys(S).map(k => [k, L[k]]));
 function remember() { past.push(snapshot()); if (past.length > 200) past.shift(); future = []; }
 function undo() { if (!past.length) return; future.push(snapshot()); restore(past.pop()); stop(); }
@@ -29,7 +30,7 @@ function save() {
 function load() {
   try {
     const o = JSON.parse(localStorage.getItem(STORE) || 'null'); if (!o) return false;
-    Object.assign(S, o.S); Object.assign(P, o.P); layers = o.layers || []; cur = o.cur || newLayer();
+    Object.assign(S, o.S); Object.assign(P, o.P); P.paper = { ...DEFAULT_PAPER, ...(o.P && o.P.paper) }; layers = o.layers || []; cur = o.cur || newLayer();
     uid = Math.max(1, ...layers.map(l => l.id + 1), cur.id + 1); return true;
   } catch { return false; }
 }
@@ -64,8 +65,8 @@ function fit() {
   cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
   cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px';
   ink.width = cv.width; ink.height = cv.height;
-  const s = Math.min(r.width, r.height) * .92 / PAPER;
-  Object.assign(view, { s: s * dpr, ox: (cv.width - PAPER * s * dpr) / 2, oy: (cv.height - PAPER * s * dpr) / 2, dpr });
+  const W = PW(), H = PH(), s = Math.min(r.width / W, r.height / H) * .9;
+  Object.assign(view, { s: s * dpr, ox: (cv.width - W * s * dpr) / 2, oy: (cv.height - H * s * dpr) / 2, dpr });
   inkDirty = true;
 }
 new ResizeObserver(fit).observe(cv.parentElement);
@@ -76,8 +77,8 @@ const worldT = c => c.setTransform(view.s, 0, 0, view.s, view.ox, view.oy);
 let inkBg = '';
 function rebuildInk() {
   ictx.setTransform(1, 0, 0, 1, 0, 0); ictx.clearRect(0, 0, ink.width, ink.height);
-  worldT(ictx); ictx.fillStyle = P.bg; ictx.fillRect(0, 0, PAPER, PAPER); inkBg = P.bg;
-  ictx.beginPath(); ictx.rect(0, 0, PAPER, PAPER); ictx.clip();
+  worldT(ictx); ictx.fillStyle = P.bg; ictx.fillRect(0, 0, PW(), PH()); inkBg = P.bg;
+  ictx.beginPath(); ictx.rect(0, 0, PW(), PH()); ictx.clip();
   for (const L of layers) if (L.visible) strokeLayer(ictx, L);
   inkDirty = false;
 }
@@ -202,10 +203,10 @@ function frame(now) {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
   worldT(ctx);
   ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 30 * view.dpr; ctx.shadowOffsetY = 8 * view.dpr;
-  ctx.fillStyle = P.bg; ctx.fillRect(0, 0, PAPER, PAPER); ctx.restore();
+  ctx.fillStyle = P.bg; ctx.fillRect(0, 0, PW(), PH()); ctx.restore();
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(ink, 0, 0);
-  worldT(ctx); ctx.save(); ctx.beginPath(); ctx.rect(0, 0, PAPER, PAPER); ctx.clip();
-  strokeLayer(ctx, cur); ctx.restore();
+  worldT(ctx); ctx.save(); ctx.beginPath(); ctx.rect(0, 0, PW(), PH()); ctx.clip();
+  strokeLayer(ctx, cur); drawTexture(ctx, P.paper.texture, PW(), PH()); ctx.restore();
   if (P.stencil) drawStencil(ctx, cur);
 }
 
@@ -218,23 +219,25 @@ function advance(d) {
   if (Math.floor(cur.pos * G.T / TAU) !== before) tick(playing ? .55 : 1);
   if (cur.b - cur.a >= G.total) {
     cur.b = cur.a + G.total;
-    if (playing || coast) { stop(); coast = null; toast('Pattern complete — it closed after ' + G.laps + (G.laps === 1 ? ' lap' : ' laps')); }
+    if (playing || coast) { stop(); coast = null; toast('Pattern complete — it closed after ' + G.laps + (G.laps === 1 ? ' lap' : ' laps')); if (P.autoHide && P.stencil) showPieces(false, true); }
   }
   readout(); save();
 }
 function play() {
+  if (autoHidden) showPieces(true);
   if (cur.b - cur.a >= tr(cur).G.total) newLayerFromCurrent();
   remember();
   playing = true; syncPlay();
 }
 function stop() { playing = false; coast = null; syncPlay(); }
-function finish() { stop(); remember(); const G = tr(cur).G; cur.b = cur.a + G.total; cur.pos = cur.b; readout(); save(); }
+function finish() { stop(); remember(); const G = tr(cur).G; cur.b = cur.a + G.total; cur.pos = cur.b; readout(); save(); if (P.autoHide && P.stencil) showPieces(false, true); }
 function commit() {
   if (!inked(cur)) return false;
   remember(); layers.push(cur); cur = null; return true;
 }
 function newLayerFromCurrent() {
   stop();
+  if (autoHidden) showPieces(true);
   if (commit()) { S.shift = (S.shift + S.autoShift) % 1000; }
   cur = newLayer(); syncControls(); dirty();
 }
@@ -260,6 +263,7 @@ cv.addEventListener('pointerdown', e => {
     if (hit >= 0 && hit !== G.hole) { change(s => s.hole = hit); return; }
   }
   stop();
+  if (autoHidden) showPieces(true);
   remember();
   drag = { kind: 'roll', last: Math.atan2(y - cur.cy, x - cur.cx), samples: [] };
   cv.classList.add('rolling');
@@ -272,7 +276,7 @@ cv.addEventListener('pointermove', e => {
     if (over !== hoverWheel) { hoverWheel = over; cv.classList.toggle('over-wheel', over); }
     return;
   }
-  if (drag.kind === 'move') { change(s => { s.cx = Math.round(clampN(x, 0, PAPER)); s.cy = Math.round(clampN(y, 0, PAPER)); }); return; }
+  if (drag.kind === 'move') { change(s => { s.cx = Math.round(clampN(x, 0, PW())); s.cy = Math.round(clampN(y, 0, PH())); }); return; }
   const ang = Math.atan2(y - cur.cy, x - cur.cx);
   let d = ang - drag.last; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU;
   drag.last = ang;
@@ -319,25 +323,29 @@ function simplify(xs, ys, tol) {
   return out;
 }
 function exportSVG() {
-  const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${PAPER}" height="${PAPER}" viewBox="0 0 ${PAPER} ${PAPER}">`, '<title>Spiro Lab drawing</title>'];
-  out.push('<defs><clipPath id="paper"><rect width="1000" height="1000"/></clipPath></defs>');
-  if (!P.transparent) out.push(`<rect width="${PAPER}" height="${PAPER}" fill="${P.bg}"/>`);
+  const W = +PW().toFixed(2), H = +PH().toFixed(2), pp = P.paper, u = pp.unit === 'px' ? '' : pp.unit;
+  // real-world size in the width/height attributes, so printers and cutting machines get the true dimensions
+  const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${fmtNum(pp.w)}${u}" height="${fmtNum(pp.h)}${u}" viewBox="0 0 ${W} ${H}">`, '<title>Spiro Lab drawing</title>'];
+  out.push(`<defs><clipPath id="paper"><rect width="${W}" height="${H}"/></clipPath></defs>`);
+  if (!P.transparent) out.push(`<rect width="${W}" height="${H}" fill="${P.bg}"/>`);
   out.push('<g clip-path="url(#paper)" fill="none" stroke-linecap="round" stroke-linejoin="round">');
   for (const L of visibleInk()) out.push(`<g><desc>${describe(L)}</desc>\n${planToSVG(planOf(L), L.opacity, simplify)}\n</g>`);
+  if (!P.transparent) out.push(textureSVG(pp.texture, W, H));
   out.push('</g></svg>');
   download(new Blob([out.join('\n')], { type: 'image/svg+xml' }), `spiro-${stamp()}.svg`);
   toast('SVG saved');
 }
 function exportPNG() {
-  const size = +P.pngSize, c = document.createElement('canvas'); c.width = size; c.height = size;
-  const x = c.getContext('2d');
-  if (!x) { toast('That size is too big for this browser. Try a smaller PNG.', true); return; }
-  x.scale(size / PAPER, size / PAPER);
-  if (!P.transparent) { x.fillStyle = P.bg; x.fillRect(0, 0, PAPER, PAPER); }
+  const [pw, ph] = paperPixels(P.paper), c = document.createElement('canvas'); c.width = pw; c.height = ph;
+  const x = c.getContext('2d'), tooBig = 'That size is too big for this browser. Pick a lower resolution next to the PNG button.';
+  if (!x || c.width !== pw) { toast(tooBig, true); return; }
+  x.scale(pw / PW(), ph / PH());
+  if (!P.transparent) { x.fillStyle = P.bg; x.fillRect(0, 0, PW(), PH()); }
   for (const L of visibleInk()) strokeLayer(x, L);
+  if (!P.transparent) drawTexture(x, P.paper.texture, PW(), PH());
   c.toBlob(b => {
-    if (!b) { toast('That size is too big for this browser. Try a smaller PNG.', true); return; }
-    download(b, `spiro-${stamp()}-${size}px.png`); toast(`PNG saved (${size} × ${size})`);
+    if (!b) { toast(tooBig, true); return; }
+    download(b, `spiro-${stamp()}-${pw}x${ph}.png`); toast(`PNG saved (${pw} × ${ph})`);
   }, 'image/png');
 }
 
@@ -392,15 +400,65 @@ bind('#play', 'click', () => playing ? stop() : play());
 bind('#finish', 'click', finish);
 bind('#newLayer', 'click', newLayerFromCurrent);
 bind('#undo', 'click', undo); bind('#redo', 'click', redo);
-bind('#stencil', 'change', e => { P.stencil = e.target.checked; save(); });
 bind('#momentum', 'change', e => { P.momentum = e.target.checked; save(); });
 bind('#oneWay', 'change', e => { P.oneWay = e.target.checked; save(); });
 bind('#sound', 'input', e => { P.sound = +e.target.value; $('#soundOut').textContent = P.sound ? Math.round(P.sound * 100) + '%' : 'Off'; save(); tick(); });
 bind('#mute', 'click', () => { P.sound = P.sound > 0 ? 0 : .35; syncControls(); save(); });
 bind('#moveRing', 'click', () => { moveMode = !moveMode; $('#moveRing').setAttribute('aria-pressed', moveMode); cv.classList.toggle('moving', moveMode); });
-bind('#centre', 'click', () => change(s => { s.cx = 500; s.cy = 500; }));
+bind('#centre', 'click', () => change(s => { s.cx = PW() / 2; s.cy = PH() / 2; }));
 bind('#svg', 'click', exportSVG); bind('#png', 'click', exportPNG);
-bind('#pngSize', 'change', e => { P.pngSize = +e.target.value; save(); });
+// paper size: when the sheet changes, everything stays centred on it
+function setPaper(fn) {
+  stop();
+  const [w0, h0] = paperWorld(P.paper);
+  remember();
+  fn(P.paper);
+  const [w1, h1] = paperWorld(P.paper), dx = (w1 - w0) / 2, dy = (h1 - h0) / 2;
+  if (dx || dy) for (const L of [...layers, cur, S]) { L.cx += dx; L.cy += dy; }
+  fit(); ringKey = ''; syncControls(); dirty();
+}
+const presetSel = $('#paperPreset');
+Object.entries(PAPER_PRESETS).forEach(([k, v]) => presetSel.add(new Option(v.label, k)));
+presetSel.addEventListener('change', () => setPaper(p => {
+  p.preset = presetSel.value; const pr = PAPER_PRESETS[p.preset];
+  if (pr.unit) { const land = p.w > p.h; p.unit = pr.unit; [p.w, p.h] = land && pr.w !== pr.h ? [pr.h, pr.w] : [pr.w, pr.h]; }
+}));
+bind('#orient', 'click', () => setPaper(p => { [p.w, p.h] = [p.h, p.w]; }));
+const LIMITS = { mm: [20, 2000], in: [1, 80], px: [100, 16384] };
+const customSize = () => setPaper(p => {
+  const u = $('#punit').value, [lo, hi] = LIMITS[u];
+  p.preset = 'custom'; p.unit = u; p.w = clampN(+$('#pw').value || lo, lo, hi); p.h = clampN(+$('#ph').value || lo, lo, hi);
+});
+bind('#pw', 'change', customSize); bind('#ph', 'change', customSize);
+bind('#punit', 'change', () => setPaper(p => {
+  // convert the current size into the new unit, using the print resolution for pixels
+  const toIn = (v, u) => u === 'in' ? v : u === 'mm' ? v / 25.4 : v / p.dpi, u = $('#punit').value;
+  const conv = v => { const i = toIn(v, p.unit); return u === 'in' ? +i.toFixed(2) : u === 'mm' ? Math.round(i * 25.4) : Math.round(i * p.dpi); };
+  p.preset = 'custom'; [p.w, p.h] = [conv(p.w), conv(p.h)]; p.unit = u;
+}));
+bind('#pngSize', 'change', e => { const v = +e.target.value; if (P.paper.unit === 'px') P.paper.scale = v; else P.paper.dpi = v; syncControls(); save(); });
+function resOptions() {
+  const sel = $('#pngSize'), p = P.paper, opts = p.unit === 'px' ? [.5, 1, 2] : [72, 150, 300, 600];
+  sel.innerHTML = '';
+  for (const v of opts) {
+    const [w, h] = paperPixels({ ...p, dpi: p.unit === 'px' ? p.dpi : v, scale: p.unit === 'px' ? v : p.scale });
+    sel.add(new Option(p.unit === 'px' ? `${v}× · ${w}×${h}` : `${v} dpi · ${w}×${h}`, v));
+  }
+  sel.value = p.unit === 'px' ? p.scale : p.dpi;
+}
+(() => {
+  const box = $('#textures');
+  Object.entries(TEXTURES).forEach(([k, v]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = v; b.dataset.v = k;
+    b.addEventListener('click', () => { P.paper.texture = k; syncControls(); save(); }); box.appendChild(b);
+  });
+  box._sync = () => [...box.children].forEach(b => b.setAttribute('aria-pressed', b.dataset.v === P.paper.texture));
+})();
+// pieces: a toggle on the paper, plus an optional auto-hide when a pattern completes
+let autoHidden = false;
+function showPieces(on, auto = false) { P.stencil = on; autoHidden = !on && auto; syncControls(); save(); }
+bind('#pieceToggle', 'click', () => showPieces(!P.stencil));
+bind('#autoHide', 'change', e => { P.autoHide = e.target.checked; save(); });
 bind('#transparent', 'change', e => { P.transparent = e.target.checked; save(); });
 bind('#surprise', 'click', () => change(s => {
   const pick = a => a[Math.floor(Math.random() * a.length)];
@@ -426,9 +484,13 @@ function syncControls() {
   $('#shiftOut').textContent = S.shift + (S.shift === 1 ? ' tooth' : ' teeth');
   $('#autoShift').value = S.autoShift;
   $('#speed').value = sliderFromSpeed(P.speed); $('#speedOut').textContent = P.speed.toFixed(2) + ' laps/s';
-  $('#stencil').checked = P.stencil; $('#momentum').checked = P.momentum; $('#oneWay').checked = P.oneWay;
+  $('#autoHide').checked = P.autoHide;
+  const pt = $('#pieceToggle'); pt.setAttribute('aria-pressed', P.stencil); pt.querySelector('use').setAttribute('href', P.stencil ? '#i-eye' : '#i-eye-slash'); pt.querySelector('span').textContent = P.stencil ? 'Pieces shown' : 'Pieces hidden';
+  const pp = P.paper; presetSel.value = pp.preset; $('#customPaper').hidden = pp.preset !== 'custom';
+  $('#pw').value = fmtNum(pp.w); $('#ph').value = fmtNum(pp.h); $('#punit').value = pp.unit; $('#paperDims').textContent = paperLabel(pp);
+  $('#orient').disabled = pp.w === pp.h; resOptions(); $('#textures')._sync(); $('#momentum').checked = P.momentum; $('#oneWay').checked = P.oneWay;
   $('#sound').value = P.sound; $('#soundOut').textContent = P.sound ? Math.round(P.sound * 100) + '%' : 'Off';
-  $('#mute').setAttribute('aria-pressed', P.sound === 0); $('#mute').title = P.sound ? 'Mute clicks' : 'Unmute clicks'; $('#pngSize').value = P.pngSize; $('#transparent').checked = P.transparent;
+  $('#mute').setAttribute('aria-pressed', P.sound === 0); $('#mute').title = P.sound ? 'Mute clicks' : 'Unmute clicks'; $('#transparent').checked = P.transparent;
   document.documentElement.style.setProperty('--pen', S.color);
   readout(); syncPlay();
 }
@@ -473,7 +535,7 @@ addEventListener('keydown', e => {
   if (e.key === ' ' && !e.target.matches('button')) { e.preventDefault(); playing ? stop() : play(); }
   else if (e.key === 'Enter' && !e.target.matches('button')) { e.preventDefault(); newLayerFromCurrent(); }
   else if (e.key === 'f') finish();
-  else if (e.key === 'h') { P.stencil = !P.stencil; syncControls(); save(); }
+  else if (e.key === 'h') showPieces(!P.stencil);
   else if (e.key === '[') change(s => s.hole = Math.max(0, s.hole - 1));
   else if (e.key === ']') change(s => s.hole = Math.min(holesFor(s.wheel, s.pitch).length - 1, s.hole + 1));
   else if (e.key === ',') change(s => s.shift = (s.shift - 1 + 1000) % 1000);
