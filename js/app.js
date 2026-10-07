@@ -1,4 +1,4 @@
-// Spiro Lab — phase 1: rings & wheels, auto-draw and hand-rolling, layers, background, PNG + SVG export.
+// Spiro Lab: rings & wheels, auto-draw and hand-rolling with momentum and tooth clicks, acrylic pieces, layers, PNG + SVG export.
 (() => {
 'use strict';
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -8,7 +8,7 @@ const PAPERS = [['#ffffff', 'White'], ['#f6f1e7', 'Cream'], ['#e8d8b9', 'Kraft']
 
 // ---------- state ----------
 const S = { ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0 };
-const P = { bg: '#ffffff', stencil: true, speed: .6, pngSize: 4096, transparent: false };
+const P = { bg: '#ffffff', stencil: true, speed: .6, pngSize: 4096, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic' };
 let layers = [], cur = null, playing = false, uid = 1;
 let past = [], future = [];
 
@@ -76,39 +76,108 @@ function rebuildInk() {
   inkDirty = false;
 }
 
-// ---------- stencil drawing (translucent acrylic pieces) ----------
+// ---------- stencil drawing: translucent acrylic pieces ----------
+// Piece colour sets: [ring, wheel] as RGB.
+const TINTS = {
+  classic: [[96, 170, 255], [255, 110, 165]],
+  mint: [[60, 205, 160], [255, 180, 60]],
+  violet: [[150, 120, 255], [80, 200, 230]],
+  smoke: [[120, 130, 150], [120, 130, 150]],
+  clear: [[215, 225, 240], [215, 225, 240]]
+};
 function gearPath(c, x, y, teeth, R, h, phase, tipOut) {
-  const s = TAU / teeth, root = R - (tipOut ? h / 2 : -h / 2), tip = R + (tipOut ? h / 2 : -h / 2);
+  const s = TAU / teeth, root = R - (tipOut ? h / 2 : -h / 2), tip = R + (tipOut ? h / 2 : -h / 2), mid = (root + tip) / 2;
   for (let i = 0; i < teeth; i++) {
     const m = phase + i * s;
-    [[root, -.32], [tip, -.17], [tip, .17], [root, .32]].forEach(([r, f], k) => {
+    // a rounded involute-ish tooth: root, flank, softened tip, flank, root
+    [[root, -.36], [mid, -.25], [tip, -.15], [tip, -.05], [tip, .05], [tip, .15], [mid, .25], [root, .36]].forEach(([r, f], k) => {
       const ax = x + r * Math.cos(m + f * s), ay = y + r * Math.sin(m + f * s);
       i === 0 && k === 0 ? c.moveTo(ax, ay) : c.lineTo(ax, ay);
     });
   }
   c.closePath();
 }
-function drawStencil(c, L) {
-  const G = geom(L), w = wheelAt(G, L, L.pos), h = G.p * .55, px = 1 / view.s * view.dpr;
-  const ring = G.ring, Ri = radiusOf(ring.inner, G.p), Ro = radiusOf(ring.outer, G.p);
+// Paint one acrylic piece: soft shadow on the paper (outside the piece only), tinted body, sheen, bevelled edge.
+function acrylic(c, shape, rgb, cx, cy, R, glow) {
+  const [r, g, b] = rgb, px = view.dpr / view.s;
   c.save();
-  c.beginPath(); gearPath(c, L.cx, L.cy, ring.outer, Ro, h, 0, true); gearPath(c, L.cx, L.cy, ring.inner, Ri, h, 0, false);
-  c.fillStyle = 'rgba(120,190,255,.16)'; c.fill('evenodd');
-  c.strokeStyle = 'rgba(70,140,220,.55)'; c.lineWidth = 1.2 * px; c.stroke();
-  c.beginPath(); c.arc(L.cx, L.cy, 3 * px * 2, 0, TAU); c.fillStyle = 'rgba(70,140,220,.6)'; c.fill();
+  c.beginPath(); c.rect(-1e4, -1e4, 3e4, 3e4); shape(); c.clip('evenodd');
+  c.beginPath(); shape();
+  c.shadowColor = 'rgba(15,20,35,.30)'; c.shadowBlur = 9 * view.dpr; c.shadowOffsetX = 2.5 * view.dpr; c.shadowOffsetY = 5 * view.dpr;
+  c.fillStyle = '#000'; c.fill('evenodd');
+  c.restore();
+  c.save();
+  c.beginPath(); shape(); c.clip('evenodd');
+  c.beginPath(); shape();
+  c.fillStyle = `rgba(${r},${g},${b},${glow ? .3 : .22})`; c.fill('evenodd');
+  const sheen = c.createLinearGradient(cx - R, cy - R, cx + R * .4, cy + R * .4);
+  sheen.addColorStop(0, 'rgba(255,255,255,.38)'); sheen.addColorStop(.45, 'rgba(255,255,255,.06)'); sheen.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = sheen; c.fill('evenodd');
+  c.lineWidth = 5 * px; c.strokeStyle = `rgba(${r},${g},${b},.35)`; c.stroke();
+  c.restore();
+  c.save(); c.beginPath(); shape();
+  c.lineWidth = (glow ? 1.8 : 1.2) * px; c.strokeStyle = `rgba(${r * .55 | 0},${g * .55 | 0},${b * .55 | 0},${glow ? .95 : .75})`; c.stroke();
+  c.translate(-.7 * px, -.7 * px); c.lineWidth = .8 * px; c.strokeStyle = 'rgba(255,255,255,.55)'; c.stroke();
+  c.restore();
+}
+function printed(c, text, x, y, size, rot, rgb, alpha = .75) {
+  c.save(); c.translate(x, y); c.rotate(rot);
+  c.font = `700 ${size}px ui-rounded, "SF Pro Rounded", system-ui, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillStyle = `rgba(${rgb[0] * .4 | 0},${rgb[1] * .4 | 0},${rgb[2] * .4 | 0},${alpha})`; c.fillText(text, 0, 0);
+  c.restore();
+}
+// The ring never moves while drawing, so it is painted once into its own layer and reused.
+const ringCv = document.createElement('canvas'), rctx = ringCv.getContext('2d');
+let ringKey = '';
+function paintRing(L, G) {
+  const key = [L.ring, L.pitch, L.cx, L.cy, P.tint, view.s, view.ox, view.oy, cv.width, cv.height].join();
+  if (key === ringKey) return;
+  ringKey = key; ringCv.width = cv.width; ringCv.height = cv.height;
+  const c = rctx, ring = G.ring, h = G.p * .55, Ri = radiusOf(ring.inner, G.p), Ro = radiusOf(ring.outer, G.p), rgb = TINTS[P.tint][0];
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, ringCv.width, ringCv.height); worldT(c);
+  acrylic(c, () => { gearPath(c, L.cx, L.cy, ring.outer, Ro, h, 0, true); gearPath(c, L.cx, L.cy, ring.inner, Ri, h, 0, false); }, rgb, L.cx, L.cy, Ro, false);
+  const band = (Ro - h / 2) - (Ri + h / 2), mid = (Ri + h / 2 + Ro - h / 2) / 2, fs = clampN(band * .2, 8, 30);
+  printed(c, String(ring.inner), L.cx, L.cy - (Ri + h / 2 + fs * .9), fs, 0, rgb);
+  printed(c, String(ring.outer), L.cx, L.cy - (Ro - h / 2 - fs * .9), fs * .8, 0, rgb, .6);
+  for (let i = 0; i < 4; i++) { const a = -Math.PI / 2 + Math.PI / 4 + i * Math.PI / 2; c.beginPath(); c.arc(L.cx + mid * Math.cos(a), L.cy + mid * Math.sin(a), G.p * .12, 0, TAU); c.fillStyle = `rgba(${rgb.join()},.45)`; c.fill(); }
+}
+function drawStencil(c, L) {
+  const G = geom(L), w = wheelAt(G, L, L.pos), h = G.p * .55, px = view.dpr / view.s, rgb = TINTS[P.tint][1];
+  paintRing(L, G);
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(ringCv, 0, 0); c.restore();
   const phase = w.spin + (G.inside ? 0 : Math.PI) + Math.PI / G.t;
-  c.beginPath(); gearPath(c, w.wx, w.wy, G.t, G.rr, h, phase, true);
-  c.fillStyle = 'rgba(255,120,170,.2)'; c.fill(); c.strokeStyle = 'rgba(220,70,130,.6)'; c.lineWidth = 1.2 * px; c.stroke();
+  acrylic(c, () => gearPath(c, w.wx, w.wy, G.t, G.rr, h, phase, true), rgb, w.wx, w.wy, G.rr, hoverWheel || (drag && drag.kind === 'roll'));
+  const holeR = G.p * .17, holeScreen = holeR / px, spacingScreen = G.p * .42 / px;
   G.holes.forEach((ho, i) => {
-    const hx = w.wx + ho.d * Math.cos(w.spin + ho.a), hy = w.wy + ho.d * Math.sin(w.spin + ho.a);
-    c.beginPath(); c.arc(hx, hy, G.p * .17, 0, TAU);
-    c.fillStyle = i === G.hole ? L.color : 'rgba(255,255,255,.55)'; c.fill();
-    c.strokeStyle = 'rgba(160,40,90,.55)'; c.lineWidth = .9 * px; c.stroke();
+    const hx = w.wx + ho.d * Math.cos(w.spin + ho.a), hy = w.wy + ho.d * Math.sin(w.spin + ho.a), on = i === G.hole;
+    c.beginPath(); c.arc(hx, hy, holeR, 0, TAU);
+    c.fillStyle = on ? L.color : 'rgba(255,255,255,.7)'; c.fill();
+    c.lineWidth = .9 * px; c.strokeStyle = `rgba(${rgb[0] * .45 | 0},${rgb[1] * .45 | 0},${rgb[2] * .45 | 0},.7)`; c.stroke();
+    if (spacingScreen > 12 && (on || holeScreen > 4)) {
+      const nx = hx + (holeR * 2.1) * Math.cos(w.spin + ho.a + Math.PI / 2), ny = hy + (holeR * 2.1) * Math.sin(w.spin + ho.a + Math.PI / 2);
+      printed(c, String(i + 1), nx, ny, Math.max(G.p * .26, 7 * px), 0, rgb, on ? .95 : .55);
+    }
   });
-  c.beginPath(); c.arc(w.wx, w.wy, G.p * .22, 0, TAU); c.strokeStyle = 'rgba(220,70,130,.6)'; c.stroke();
+  printed(c, String(G.t), w.wx, w.wy, clampN(G.rr * .22, 9 * px, 40), w.spin + Math.PI / 2, rgb, .7);
   c.beginPath(); c.arc(w.px, w.py, Math.max(G.p * .28, 4 * px), 0, TAU); c.fillStyle = L.color; c.fill();
   c.lineWidth = 2 * px; c.strokeStyle = 'rgba(255,255,255,.95)'; c.stroke();
-  c.restore();
+  if (spacingScreen <= 12) printed(c, 'hole ' + (G.hole + 1), w.px, w.py - Math.max(G.p * .7, 14 * px), 11 * px, 0, rgb, .9);
+}
+
+// ---------- feel: tooth clicks, momentum, one-way ----------
+let actx = null, clickT = 0, coast = null, hoverWheel = false;
+function audio() { if (!actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch {} } else if (actx.state === 'suspended') actx.resume(); }
+addEventListener('pointerdown', audio); addEventListener('keydown', audio);
+// one short, slightly varied plastic tick: a noise burst through a bandpass
+function tick(strength = 1) {
+  if (!actx || P.sound <= 0) return;
+  const now = actx.currentTime; if (now - clickT < .018) return; clickT = now;
+  const n = Math.floor(actx.sampleRate * .02), buf = actx.createBuffer(1, n, actx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (n * .12));
+  const src = actx.createBufferSource(), bp = actx.createBiquadFilter(), g = actx.createGain();
+  src.buffer = buf; bp.type = 'bandpass'; bp.frequency.value = 2600 + Math.random() * 900; bp.Q.value = 4;
+  g.gain.value = P.sound * .55 * strength;
+  src.connect(bp).connect(g).connect(actx.destination); src.start(now);
 }
 
 // ---------- frame ----------
@@ -118,6 +187,11 @@ function frame(now) {
   const dt = Math.min(.05, (now - lastT) / 1000); lastT = now;
   if (!cv.width || !cv.height) { fit(); if (!cv.width || !cv.height) return; }
   if (playing) advance(P.speed * TAU * dt);
+  else if (coast) {
+    advance(coast.v * dt);
+    coast.v *= Math.exp(-2.6 * dt);
+    if (Math.abs(coast.v) < .06 || !coast) coast = null;
+  }
   if (inkDirty) rebuildInk();
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
   worldT(ctx);
@@ -132,8 +206,14 @@ function frame(now) {
 // ---------- drawing actions ----------
 function advance(d) {
   const G = tr(cur).G;
+  if (P.oneWay && d < 0) return;
+  const before = Math.floor(cur.pos * G.T / TAU);
   cur.pos += d; cur.a = Math.min(cur.a, cur.pos); cur.b = Math.max(cur.b, cur.pos);
-  if (cur.b - cur.a >= G.total) { cur.b = cur.a + G.total; if (playing) { stop(); toast('Pattern complete — it closed after ' + G.laps + (G.laps === 1 ? ' lap' : ' laps')); } }
+  if (Math.floor(cur.pos * G.T / TAU) !== before) tick(playing ? .55 : 1);
+  if (cur.b - cur.a >= G.total) {
+    cur.b = cur.a + G.total;
+    if (playing || coast) { stop(); coast = null; toast('Pattern complete — it closed after ' + G.laps + (G.laps === 1 ? ' lap' : ' laps')); }
+  }
   readout(); save();
 }
 function play() {
@@ -141,7 +221,7 @@ function play() {
   remember();
   playing = true; syncPlay();
 }
-function stop() { playing = false; syncPlay(); }
+function stop() { playing = false; coast = null; syncPlay(); }
 function finish() { stop(); remember(); const G = tr(cur).G; cur.b = cur.a + G.total; cur.pos = cur.b; readout(); save(); }
 function commit() {
   if (!inked(cur)) return false;
@@ -175,19 +255,32 @@ cv.addEventListener('pointerdown', e => {
   }
   stop();
   remember();
-  drag = { kind: 'roll', last: Math.atan2(y - cur.cy, x - cur.cx) };
+  drag = { kind: 'roll', last: Math.atan2(y - cur.cy, x - cur.cx), samples: [] };
   cv.classList.add('rolling');
 });
 cv.addEventListener('pointermove', e => {
-  if (!drag) return;
   const [x, y] = toWorld(e.clientX, e.clientY);
+  if (!drag) {
+    let over = false;
+    if (P.stencil) { const G = geom(cur), w = wheelAt(G, cur, cur.pos); over = Math.hypot(x - w.wx, y - w.wy) < G.rr + G.p * .3; }
+    if (over !== hoverWheel) { hoverWheel = over; cv.classList.toggle('over-wheel', over); }
+    return;
+  }
   if (drag.kind === 'move') { change(s => { s.cx = Math.round(clampN(x, 0, PAPER)); s.cy = Math.round(clampN(y, 0, PAPER)); }); return; }
   const ang = Math.atan2(y - cur.cy, x - cur.cx);
   let d = ang - drag.last; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU;
   drag.last = ang;
+  const t = performance.now(); drag.samples.push([t, d]); while (drag.samples.length && t - drag.samples[0][0] > 90) drag.samples.shift();
   if (Math.abs(d) > 1e-4) advance(d);
 });
-const endDrag = () => { drag = null; cv.classList.remove('rolling'); syncPlay(); };
+const endDrag = () => {
+  if (drag && drag.kind === 'roll' && P.momentum && drag.samples.length > 1) {
+    const s = drag.samples, span = (s[s.length - 1][0] - s[0][0]) / 1000, sum = s.reduce((a, q) => a + q[1], 0);
+    const v = span > .01 ? sum / span : 0;
+    if (Math.abs(v) > .6 && (!P.oneWay || v > 0)) coast = { v: clampN(v, -40, 40) };
+  }
+  drag = null; cv.classList.remove('rolling'); syncPlay();
+};
 cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
 let moveMode = false;
 
@@ -271,6 +364,15 @@ function swatches(box, list, get, set) {
 }
 swatches($('#pens'), PENS, () => S.color, c => change(s => s.color = c));
 swatches($('#papers'), PAPERS, () => P.bg, c => { P.bg = c; syncControls(); save(); });
+(() => {
+  const box = $('#tints'), names = { classic: 'Classic', mint: 'Mint', violet: 'Violet', smoke: 'Smoke', clear: 'Clear' };
+  Object.keys(TINTS).forEach(k => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'tint'; b.dataset.v = k; b.title = names[k]; b.setAttribute('aria-label', names[k] + ' pieces');
+    b.style.setProperty('--a', `rgb(${TINTS[k][0]})`); b.style.setProperty('--b', `rgb(${TINTS[k][1]})`);
+    b.addEventListener('click', () => { P.tint = k; syncControls(); save(); }); box.appendChild(b);
+  });
+  box._sync = () => [...box.children].forEach(b => b.setAttribute('aria-pressed', b.dataset.v === P.tint));
+})();
 const bind = (sel, ev, fn) => $(sel).addEventListener(ev, fn);
 bind('#penColor', 'input', e => change(s => s.color = e.target.value));
 bind('#bgColor', 'input', e => { P.bg = e.target.value; syncControls(); save(); });
@@ -288,6 +390,10 @@ bind('#finish', 'click', finish);
 bind('#newLayer', 'click', newLayerFromCurrent);
 bind('#undo', 'click', undo); bind('#redo', 'click', redo);
 bind('#stencil', 'change', e => { P.stencil = e.target.checked; save(); });
+bind('#momentum', 'change', e => { P.momentum = e.target.checked; save(); });
+bind('#oneWay', 'change', e => { P.oneWay = e.target.checked; save(); });
+bind('#sound', 'input', e => { P.sound = +e.target.value; $('#soundOut').textContent = P.sound ? Math.round(P.sound * 100) + '%' : 'Off'; save(); tick(); });
+bind('#mute', 'click', () => { P.sound = P.sound > 0 ? 0 : .35; syncControls(); save(); });
 bind('#moveRing', 'click', () => { moveMode = !moveMode; $('#moveRing').setAttribute('aria-pressed', moveMode); cv.classList.toggle('moving', moveMode); });
 bind('#centre', 'click', () => change(s => { s.cx = 500; s.cy = 500; }));
 bind('#svg', 'click', exportSVG); bind('#png', 'click', exportPNG);
@@ -306,7 +412,7 @@ clearBtn.addEventListener('click', () => {
 });
 
 function syncControls() {
-  ['#rings', '#modes', '#wheels', '#pens', '#papers'].forEach(s => $(s)._sync());
+  ['#rings', '#modes', '#wheels', '#pens', '#papers', '#tints'].forEach(s => $(s)._sync());
   const G = geom(S);
   $('#hole').max = G.holes.length; $('#hole').value = G.hole + 1; $('#holeOut').textContent = `${G.hole + 1} of ${G.holes.length}`;
   $('#penColor').value = S.color; $('#bgColor').value = P.bg;
@@ -316,7 +422,9 @@ function syncControls() {
   $('#shiftOut').textContent = S.shift + (S.shift === 1 ? ' tooth' : ' teeth');
   $('#autoShift').value = S.autoShift;
   $('#speed').value = sliderFromSpeed(P.speed); $('#speedOut').textContent = P.speed.toFixed(2) + ' laps/s';
-  $('#stencil').checked = P.stencil; $('#pngSize').value = P.pngSize; $('#transparent').checked = P.transparent;
+  $('#stencil').checked = P.stencil; $('#momentum').checked = P.momentum; $('#oneWay').checked = P.oneWay;
+  $('#sound').value = P.sound; $('#soundOut').textContent = P.sound ? Math.round(P.sound * 100) + '%' : 'Off';
+  $('#mute').setAttribute('aria-pressed', P.sound === 0); $('#mute').title = P.sound ? 'Mute clicks' : 'Unmute clicks'; $('#pngSize').value = P.pngSize; $('#transparent').checked = P.transparent;
   document.documentElement.style.setProperty('--pen', S.color);
   readout(); syncPlay();
 }
