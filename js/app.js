@@ -7,14 +7,14 @@ const PENS = ['#1b1b1f', '#e63946', '#f77f00', '#fcbf49', '#2a9d8f', '#3a86ff', 
 const PAPERS = [['#ffffff', 'White'], ['#f6f1e7', 'Cream'], ['#e8d8b9', 'Kraft'], ['#111114', 'Black card'], ['#14213d', 'Navy'], ['#2b2d42', 'Slate']];
 
 // ---------- state ----------
-const S = { ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0 };
+const S = { ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0, pen: 'ballpoint', rainbow: false };
 const P = { bg: '#ffffff', stencil: true, speed: .6, pngSize: 4096, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic' };
 let layers = [], cur = null, playing = false, uid = 1;
 let past = [], future = [];
 
 const newLayer = () => ({ id: uid++, ...S, a: 0, b: 0, pos: 0, visible: true });
 const inked = L => L && L.b - L.a > 1e-6;
-const strip = L => { const { _tr, _key, ...rest } = L; return rest; };
+const strip = L => { const { _tr, _key, _plan, _pk, ...rest } = L; return rest; };
 const snapshot = () => JSON.stringify({ layers: layers.map(strip), cur: strip(cur) });
 function restore(json) { const o = JSON.parse(json); layers = o.layers; cur = o.cur; uid = Math.max(uid, ...layers.map(l => l.id + 1), cur.id + 1); Object.assign(S, pickS(cur)); syncControls(); dirty(); }
 const pickS = L => Object.fromEntries(Object.keys(S).map(k => [k, L[k]]));
@@ -40,15 +40,18 @@ function tr(L) {
   if (L._key !== key) { L._tr = trace(L); L._key = key; }
   return L._tr;
 }
-function pathOf(L, ctx) {
-  const t = tr(L), p = t.pts; let first = true;
-  for (const i of rangeIdx(t, L.a, L.b)) { if (first) { ctx.moveTo(p[i * 2], p[i * 2 + 1]); first = false; } else ctx.lineTo(p[i * 2], p[i * 2 + 1]); }
+// the drawn part of a layer, turned into pen-style drawing ops (cached until anything changes)
+function planOf(L) {
+  tr(L);
+  const light = luminance(P.bg) > .5, key = [L._key, L.a, L.b, L.pen, L.rainbow, L.color, L.width, light].join();
+  if (L._pk !== key) {
+    const t = L._tr, p = t.pts, xy = [];
+    for (const i of rangeIdx(t, L.a, L.b)) xy.push(p[i * 2], p[i * 2 + 1]);
+    L._plan = buildPlan(L, xy, light); L._pk = key;
+  }
+  return L._plan;
 }
-function strokeLayer(ctx, L) {
-  if (!inked(L)) return;
-  ctx.save(); ctx.globalAlpha = L.opacity; ctx.strokeStyle = L.color; ctx.lineWidth = L.width; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  ctx.beginPath(); pathOf(L, ctx); ctx.stroke(); ctx.restore();
-}
+function strokeLayer(ctx, L) { if (inked(L)) drawPlan(ctx, planOf(L), L.opacity); }
 
 // ---------- canvas & view ----------
 const cv = $('#paper'), ctx = cv.getContext('2d');
@@ -69,9 +72,12 @@ new ResizeObserver(fit).observe(cv.parentElement);
 const toWorld = (cx_, cy_) => { const r = cv.getBoundingClientRect(); return [((cx_ - r.left) * view.dpr - view.ox) / view.s, ((cy_ - r.top) * view.dpr - view.oy) / view.s]; };
 const worldT = c => c.setTransform(view.s, 0, 0, view.s, view.ox, view.oy);
 
+// the ink layer carries the paper colour too, so multiply-blended inks (felt, highlighter, pencil) mix with the paper
+let inkBg = '';
 function rebuildInk() {
   ictx.setTransform(1, 0, 0, 1, 0, 0); ictx.clearRect(0, 0, ink.width, ink.height);
-  worldT(ictx); ictx.beginPath(); ictx.rect(0, 0, PAPER, PAPER); ictx.clip();
+  worldT(ictx); ictx.fillStyle = P.bg; ictx.fillRect(0, 0, PAPER, PAPER); inkBg = P.bg;
+  ictx.beginPath(); ictx.rect(0, 0, PAPER, PAPER); ictx.clip();
   for (const L of layers) if (L.visible) strokeLayer(ictx, L);
   inkDirty = false;
 }
@@ -192,7 +198,7 @@ function frame(now) {
     coast.v *= Math.exp(-2.6 * dt);
     if (Math.abs(coast.v) < .06 || !coast) coast = null;
   }
-  if (inkDirty) rebuildInk();
+  if (inkDirty || inkBg !== P.bg) rebuildInk();
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
   worldT(ctx);
   ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 30 * view.dpr; ctx.shadowOffsetY = 8 * view.dpr;
@@ -291,7 +297,8 @@ function download(blob, name) {
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 const visibleInk = () => [...layers.filter(l => l.visible), cur].filter(inked);
-const describe = L => `${RINGS[L.ring].inner}/${RINGS[L.ring].outer} ring, ${L.wheel}-tooth wheel ${L.mode}, hole ${L.hole + 1}, shift ${L.shift}`;
+const penName = L => (PEN_STYLES[L.pen] || PEN_STYLES.ballpoint).label;
+const describe = L => `${RINGS[L.ring].inner}/${RINGS[L.ring].outer} ring, ${L.wheel}-tooth wheel ${L.mode}, hole ${L.hole + 1}, shift ${L.shift}, ${penName(L).toLowerCase()} pen${L.rainbow ? ', rainbow ink' : ''}`;
 // Douglas–Peucker on the dense trace: drops points that deviate less than `tol` paper units (1/25,000 of the page)
 function simplify(xs, ys, tol) {
   const n = xs.length; if (n < 3) return [...Array(n).keys()];
@@ -316,13 +323,7 @@ function exportSVG() {
   out.push('<defs><clipPath id="paper"><rect width="1000" height="1000"/></clipPath></defs>');
   if (!P.transparent) out.push(`<rect width="${PAPER}" height="${PAPER}" fill="${P.bg}"/>`);
   out.push('<g clip-path="url(#paper)" fill="none" stroke-linecap="round" stroke-linejoin="round">');
-  for (const L of visibleInk()) {
-    const t = tr(L), p = t.pts, xs = [], ys = [];
-    for (const i of rangeIdx(t, L.a, L.b)) { xs.push(p[i * 2]); ys.push(p[i * 2 + 1]); }
-    const keep = simplify(xs, ys, .04), parts = [];
-    keep.forEach((i, k) => parts.push((k ? 'L' : 'M') + +xs[i].toFixed(2) + ' ' + +ys[i].toFixed(2)));
-    out.push(`<path d="${parts.join('')}" stroke="${L.color}" stroke-width="${L.width}"${L.opacity < 1 ? ` stroke-opacity="${L.opacity}"` : ''}><desc>${describe(L)}</desc></path>`);
-  }
+  for (const L of visibleInk()) out.push(`<g><desc>${describe(L)}</desc>\n${planToSVG(planOf(L), L.opacity, simplify)}\n</g>`);
   out.push('</g></svg>');
   download(new Blob([out.join('\n')], { type: 'image/svg+xml' }), `spiro-${stamp()}.svg`);
   toast('SVG saved');
@@ -375,6 +376,8 @@ swatches($('#papers'), PAPERS, () => P.bg, c => { P.bg = c; syncControls(); save
 })();
 const bind = (sel, ev, fn) => $(sel).addEventListener(ev, fn);
 bind('#penColor', 'input', e => change(s => s.color = e.target.value));
+chips($('#penStyles'), Object.keys(PEN_STYLES), () => S.pen, (s, v) => { s.pen = v; s.width = PEN_STYLES[v].w; }, v => PEN_STYLES[v].label);
+bind('#rainbow', 'change', e => change(s => s.rainbow = e.target.checked));
 bind('#bgColor', 'input', e => { P.bg = e.target.value; syncControls(); save(); });
 bind('#hole', 'input', e => change(s => s.hole = +e.target.value - 1));
 bind('#width', 'input', e => change(s => s.width = +e.target.value));
@@ -412,7 +415,8 @@ clearBtn.addEventListener('click', () => {
 });
 
 function syncControls() {
-  ['#rings', '#modes', '#wheels', '#pens', '#papers', '#tints'].forEach(s => $(s)._sync());
+  ['#rings', '#modes', '#wheels', '#pens', '#papers', '#tints', '#penStyles'].forEach(s => $(s)._sync());
+  $('#rainbow').checked = !!S.rainbow;
   const G = geom(S);
   $('#hole').max = G.holes.length; $('#hole').value = G.hole + 1; $('#holeOut').textContent = `${G.hole + 1} of ${G.holes.length}`;
   $('#penColor').value = S.color; $('#bgColor').value = P.bg;
@@ -447,7 +451,7 @@ function renderLayers() {
   if (!all.length) { list.innerHTML = '<li class="empty">Finished passes appear here. Press <b>New layer</b> to keep a pass and start the next one.</li>'; return; }
   all.forEach(L => {
     const li = document.createElement('li'); li.className = 'layer' + (L.visible ? '' : ' hidden');
-    li.innerHTML = `<i class="dot" style="--c:${L.color}"></i><div><b>${RINGS[L.ring].inner}/${RINGS[L.ring].outer} · ${L.wheel} wheel</b><small>${L.mode} · hole ${L.hole + 1} · shift ${L.shift}</small></div>
+    li.innerHTML = `<i class="dot${L.rainbow ? ' rainbow' : ''}" style="--c:${L.color}"></i><div><b>${RINGS[L.ring].inner}/${RINGS[L.ring].outer} · ${L.wheel} wheel</b><small>${penName(L)}${L.rainbow ? ' rainbow' : ''} · ${L.mode} · hole ${L.hole + 1} · shift ${L.shift}</small></div>
       <button type="button" class="ico" aria-label="${L.visible ? 'Hide' : 'Show'} layer"><svg><use href="#i-${L.visible ? 'eye' : 'eye-slash'}"/></svg></button>
       <button type="button" class="ico" aria-label="Delete layer"><svg><use href="#i-trash"/></svg></button>`;
     const [eye, del] = li.querySelectorAll('button');

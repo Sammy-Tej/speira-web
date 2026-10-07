@@ -126,3 +126,8 @@ input[type=color] { width: 100%; height: 30px; border: 1px solid var(--line); bo
   background: linear-gradient(135deg, var(--a) 0 50%, var(--b) 50% 100%); opacity: .75; }
 .tint:hover { opacity: 1; }
 .tint[aria-pressed="true"] { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.chips.pens4 { display: grid; grid-template-columns: repeat(4, 1fr); }
+.chips.pens4 .chip { font: 600 11px var(--ui); }
+.check small { color: var(--faint); font-size: 11px; }
+.dot.rainbow { background: conic-gradient(#e63946, #fcbf49, #06d6a0, #3a86ff, #7b2cbf, #e63946); }
