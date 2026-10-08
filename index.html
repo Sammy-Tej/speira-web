@@ -17,13 +17,27 @@
     <button class="ico" id="undo" type="button" title="Undo (⌘Z)" aria-label="Undo"><svg><use href="#i-arrow-counter-clockwise"/></svg></button>
     <button class="ico" id="redo" type="button" title="Redo (⇧⌘Z)" aria-label="Redo"><svg><use href="#i-arrow-clockwise"/></svg></button>
   </div>
-  <div class="export">
-    <label class="check"><input type="checkbox" id="transparent"> Transparent background</label>
-    <button class="btn" id="svg" type="button" title="Save as SVG (⌘S)"><svg><use href="#i-download-simple"/></svg>SVG</button>
-    <div class="split">
-      <select id="pngSize" aria-label="PNG resolution"></select>
-      <button class="btn" id="png" type="button" title="Save as PNG (⇧⌘S)"><svg><use href="#i-download-simple"/></svg>PNG</button>
+  <div class="export menuwrap">
+    <button class="btn" id="exportBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="exportPanel" title="Export (⌘E) · ⌘S saves again with your last settings"><svg><use href="#i-download-simple"/></svg>Export</button>
+    <div class="exportpanel" id="exportPanel" role="dialog" aria-label="Export" hidden>
+      <div class="seg" role="radiogroup" aria-label="Format">
+        <button type="button" role="radio" data-fmt="png">PNG</button>
+        <button type="button" role="radio" data-fmt="jpg">JPG</button>
+        <button type="button" role="radio" data-fmt="svg">SVG</button>
+      </div>
+      <p class="fmtnote" id="fmtNote"></p>
+      <label class="opt field" data-for="png jpg"><span class="lbl">Size</span><select id="pngSize" class="wide" aria-label="Image size"></select></label>
+      <label class="opt row" data-for="jpg"><span>Quality</span><input type="range" id="jpgQ" min=".5" max="1" step=".01"><output id="jpgQOut"></output></label>
+      <div class="opt svgstyles" data-for="svg" role="radiogroup" aria-label="SVG style">
+        <button type="button" role="radio" data-svg="effects"><b>With pen effects</b>
+          <small>Looks like the screen: metallic shimmer, glitter, felt-tip pooling, rainbow ink. Best for viewing, sharing and printing.</small></button>
+        <button type="button" role="radio" data-svg="plain"><b>Plain lines</b>
+          <small>One clean line per layer in its pen colour, no effects. Best for editing in design apps, pen plotters and cutting machines (Cricut, Silhouette). Smallest file, opens fastest.</small></button>
+      </div>
+      <label class="opt check" data-for="png svg"><input type="checkbox" id="transparent"> Transparent background</label>
+      <button class="btn primary" id="doExport" type="button"><svg><use href="#i-download-simple"/></svg><span>Save</span></button>
     </div>
+  </div>
   </div>
 </header>
 

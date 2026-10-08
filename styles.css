@@ -1,3 +1,4 @@
+[hidden] { display: none !important; }
 /* Layout: a maker's desk — dark graphite workspace, the paper as the bright centre of the stage, a tool panel on the right.
    One deliberate dark chrome; the paper colour is the user's. */
 :root {
@@ -144,3 +145,17 @@ select.wide { width: 100%; height: 32px; border: 1px solid var(--line); border-r
 .chips.texrow { display: grid; grid-template-columns: repeat(4, 1fr); }
 .chips.texrow .chip { font: 600 11px var(--ui); }
 .btn:disabled { opacity: .4; cursor: default; }
+
+.menuwrap { position: relative; }
+.exportpanel { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: 340px; max-width: calc(100vw - 32px); display: flex; flex-direction: column; gap: 12px; padding: 14px;
+  background: #23262d; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 16px 44px rgba(0,0,0,.55); }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 3px; background: var(--desk); border: 1px solid var(--line); border-radius: 10px; }
+.seg button { height: 30px; border: 0; border-radius: 7px; background: transparent; color: var(--dim); font: 700 12px var(--mono); cursor: pointer; }
+.seg button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); }
+.fmtnote { margin: 0; color: var(--dim); font-size: 12px; line-height: 1.4; }
+.svgstyles { display: flex; flex-direction: column; gap: 6px; }
+.svgstyles button { text-align: left; border: 1px solid var(--line); background: var(--desk); border-radius: 10px; padding: 10px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
+.svgstyles button[aria-checked="true"] { border-color: var(--accent); background: rgba(255, 122, 89, .08); }
+.svgstyles b { font-size: 13px; }
+.svgstyles small { color: var(--dim); font-size: 12px; line-height: 1.35; }
+#doExport { width: 100%; }

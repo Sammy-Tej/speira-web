@@ -8,14 +8,14 @@ const PAPERS = [['#ffffff', 'White'], ['#f6f1e7', 'Cream'], ['#e8d8b9', 'Kraft']
 
 // ---------- state ----------
 const S = { ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0, pen: 'ballpoint', rainbow: false };
-const P = { bg: '#ffffff', stencil: true, autoHide: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic', paper: { ...DEFAULT_PAPER } };
+const P = { bg: '#ffffff', stencil: true, autoHide: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic', paper: { ...DEFAULT_PAPER }, svgMode: 'effects', exportFmt: 'png', jpgQ: .9 };
 const PW = () => paperWorld(P.paper)[0], PH = () => paperWorld(P.paper)[1];
 let layers = [], cur = null, playing = false, uid = 1;
 let past = [], future = [];
 
 const newLayer = () => ({ id: uid++, ...S, a: 0, b: 0, pos: 0, visible: true });
 const inked = L => L && L.b - L.a > 1e-6;
-const strip = L => { const { _tr, _key, _plan, _pk, ...rest } = L; return rest; };
+const strip = L => { const { _tr, _key, _plan, _pk, _xy, ...rest } = L; return rest; };
 const snapshot = () => JSON.stringify({ layers: layers.map(strip), cur: strip(cur), paper: P.paper });
 function restore(json) { const o = JSON.parse(json); layers = o.layers; cur = o.cur; if (o.paper) { P.paper = o.paper; fit(); ringKey = ''; } uid = Math.max(uid, ...layers.map(l => l.id + 1), cur.id + 1); Object.assign(S, pickS(cur)); syncControls(); dirty(); }
 const pickS = L => Object.fromEntries(Object.keys(S).map(k => [k, L[k]]));
@@ -48,7 +48,7 @@ function planOf(L) {
   if (L._pk !== key) {
     const t = L._tr, p = t.pts, xy = [];
     for (const i of rangeIdx(t, L.a, L.b)) xy.push(p[i * 2], p[i * 2 + 1]);
-    L._plan = buildPlan(L, xy, light); L._pk = key;
+    L._plan = buildPlan(L, xy, light, t.N / t.G.laps); L._pk = key; L._xy = xy;
   }
   return L._plan;
 }
@@ -255,7 +255,7 @@ function change(fn) {
 let drag = null;
 cv.addEventListener('pointerdown', e => {
   const [x, y] = toWorld(e.clientX, e.clientY);
-  cv.setPointerCapture(e.pointerId);
+  try { cv.setPointerCapture(e.pointerId); } catch {}
   if (moveMode || e.altKey) { drag = { kind: 'move' }; return; }
   if (P.stencil) {
     const G = geom(cur), w = wheelAt(G, cur, cur.pos), tol = Math.max(G.p * .32, 10 * view.dpr / view.s);
@@ -322,31 +322,41 @@ function simplify(xs, ys, tol) {
   const out = []; for (let i = 0; i < n; i++) if (keep[i]) out.push(i);
   return out;
 }
-function exportSVG() {
+function exportSVG(mode = P.svgMode) {
+  P.svgMode = mode; save();
   const W = +PW().toFixed(2), H = +PH().toFixed(2), pp = P.paper, u = pp.unit === 'px' ? '' : pp.unit;
   // real-world size in the width/height attributes, so printers and cutting machines get the true dimensions
   const out = [`<svg xmlns="http://www.w3.org/2000/svg" width="${fmtNum(pp.w)}${u}" height="${fmtNum(pp.h)}${u}" viewBox="0 0 ${W} ${H}">`, '<title>Spiro Lab drawing</title>'];
   out.push(`<defs><clipPath id="paper"><rect width="${W}" height="${H}"/></clipPath></defs>`);
   if (!P.transparent) out.push(`<rect width="${W}" height="${H}" fill="${P.bg}"/>`);
   out.push('<g clip-path="url(#paper)" fill="none" stroke-linecap="round" stroke-linejoin="round">');
-  for (const L of visibleInk()) out.push(`<g><desc>${describe(L)}</desc>\n${planToSVG(planOf(L), L.opacity, simplify)}\n</g>`);
+  // one named group per Spiro Lab layer, so design apps show readable layer names
+  visibleInk().forEach((L, i) => {
+    const plan = planOf(L), label = `Layer ${i + 1} · ${penName(L)}${L.rainbow ? ' rainbow' : ''} · ${RINGS[L.ring].inner}/${RINGS[L.ring].outer} · wheel ${L.wheel} ${L.mode}`;
+    const id = `layer-${String(i + 1).padStart(2, '0')}-${penName(L).toLowerCase().replace(/[^a-z]+/g, '-')}-wheel-${L.wheel}-${L.mode}`;
+    out.push(`<g id="${id}" data-name="${label}"><title>${label}</title><desc>${describe(L)}</desc>`);
+    out.push(mode === 'plain' ? plainSVG(L, L._xy, simplify) : planToSVG(plan, L.opacity, simplify));
+    out.push('</g>');
+  });
   if (!P.transparent) out.push(textureSVG(pp.texture, W, H));
   out.push('</g></svg>');
-  download(new Blob([out.join('\n')], { type: 'image/svg+xml' }), `spiro-${stamp()}.svg`);
-  toast('SVG saved');
+  download(new Blob([out.join('\n')], { type: 'image/svg+xml' }), `spiro-${stamp()}${mode === 'plain' ? '-plain' : ''}.svg`);
+  toast(mode === 'plain' ? 'SVG saved (plain lines)' : 'SVG saved (with pen effects)');
 }
-function exportPNG() {
+function exportPNG() { exportRaster('png'); }
+function exportRaster(fmt) {
   const [pw, ph] = paperPixels(P.paper), c = document.createElement('canvas'); c.width = pw; c.height = ph;
   const x = c.getContext('2d'), tooBig = 'That size is too big for this browser. Pick a lower resolution next to the PNG button.';
   if (!x || c.width !== pw) { toast(tooBig, true); return; }
   x.scale(pw / PW(), ph / PH());
-  if (!P.transparent) { x.fillStyle = P.bg; x.fillRect(0, 0, PW(), PH()); }
+  const opaque = fmt === 'jpg' || !P.transparent;   // JPG has no transparency
+  if (opaque) { x.fillStyle = P.bg; x.fillRect(0, 0, PW(), PH()); }
   for (const L of visibleInk()) strokeLayer(x, L);
-  if (!P.transparent) drawTexture(x, P.paper.texture, PW(), PH());
+  if (opaque) drawTexture(x, P.paper.texture, PW(), PH());
   c.toBlob(b => {
     if (!b) { toast(tooBig, true); return; }
-    download(b, `spiro-${stamp()}-${pw}x${ph}.png`); toast(`PNG saved (${pw} × ${ph})`);
-  }, 'image/png');
+    download(b, `spiro-${stamp()}-${pw}x${ph}.${fmt}`); toast(`${fmt.toUpperCase()} saved (${pw} × ${ph})`);
+  }, fmt === 'jpg' ? 'image/jpeg' : 'image/png', P.jpgQ);
 }
 
 // ---------- UI wiring ----------
@@ -406,7 +416,35 @@ bind('#sound', 'input', e => { P.sound = +e.target.value; $('#soundOut').textCon
 bind('#mute', 'click', () => { P.sound = P.sound > 0 ? 0 : .35; syncControls(); save(); });
 bind('#moveRing', 'click', () => { moveMode = !moveMode; $('#moveRing').setAttribute('aria-pressed', moveMode); cv.classList.toggle('moving', moveMode); });
 bind('#centre', 'click', () => change(s => { s.cx = PW() / 2; s.cy = PH() / 2; }));
-bind('#svg', 'click', exportSVG); bind('#png', 'click', exportPNG);
+// ---------- export panel: one button, pick PNG / JPG / SVG, then that format's options ----------
+const exportBtn = $('#exportBtn'), panel = $('#exportPanel');
+const FMT_NOTES = {
+  png: 'Sharp, lossless image. Best for sharing online and printing.',
+  jpg: 'Smaller image with light compression. Good for messages and photo apps. JPG has no transparency, so the paper colour is always included.',
+  svg: 'Vector file: stays sharp at any size and can be edited line by line.'
+};
+function syncExport() {
+  const f = P.exportFmt;
+  panel.querySelectorAll('[data-fmt]').forEach(b => b.setAttribute('aria-checked', b.dataset.fmt === f));
+  panel.querySelectorAll('.opt').forEach(o => o.hidden = !o.dataset.for.split(' ').includes(f));
+  panel.querySelectorAll('[data-svg]').forEach(b => b.setAttribute('aria-checked', b.dataset.svg === P.svgMode));
+  $('#fmtNote').textContent = FMT_NOTES[f];
+  $('#jpgQ').value = P.jpgQ; $('#jpgQOut').textContent = Math.round(P.jpgQ * 100) + '%';
+  $('#doExport span').textContent = 'Save ' + f.toUpperCase();
+}
+function exportNow() { if (P.exportFmt === 'svg') exportSVG(P.svgMode); else exportRaster(P.exportFmt); }
+function openExport(open) {
+  panel.hidden = !open; exportBtn.setAttribute('aria-expanded', String(open));
+  if (open) { syncExport(); panel.querySelector(`[data-fmt="${P.exportFmt}"]`).focus(); }
+}
+exportBtn.addEventListener('click', () => openExport(panel.hidden));
+panel.querySelectorAll('[data-fmt]').forEach(b => b.addEventListener('click', () => { P.exportFmt = b.dataset.fmt; syncExport(); save(); }));
+panel.querySelectorAll('[data-svg]').forEach(b => b.addEventListener('click', () => { P.svgMode = b.dataset.svg; syncExport(); save(); }));
+bind('#jpgQ', 'input', e => { P.jpgQ = +e.target.value; syncExport(); save(); });
+bind('#doExport', 'click', () => { exportNow(); openExport(false); });
+// close when clicking anywhere else (capture phase, so the drawing canvas can't swallow it) or pressing Esc
+document.addEventListener('pointerdown', e => { if (!panel.hidden && !panel.contains(e.target) && !exportBtn.contains(e.target)) openExport(false); }, true);
+panel.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); openExport(false); exportBtn.focus(); } });
 // paper size: when the sheet changes, everything stays centred on it
 function setPaper(fn) {
   stop();
@@ -527,10 +565,11 @@ function toast(msg, bad) { const t = $('#toast'); t.textContent = msg; t.classLi
 
 // keyboard
 addEventListener('keydown', e => {
-  if (e.target.matches('input[type=number], input[type=text]')) return;
+  if (!(e.target instanceof Element) || e.target.matches('input[type=number], input[type=text]')) return;
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
-  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); e.shiftKey ? exportPNG() : exportSVG(); return; }
+  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); exportNow(); return; }
+  if (mod && e.key.toLowerCase() === 'e') { e.preventDefault(); openExport(panel.hidden); return; }
   if (mod) return;
   if (e.key === ' ' && !e.target.matches('button')) { e.preventDefault(); playing ? stop() : play(); }
   else if (e.key === 'Enter' && !e.target.matches('button')) { e.preventDefault(); newLayerFromCurrent(); }
