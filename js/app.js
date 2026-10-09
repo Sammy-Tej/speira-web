@@ -102,14 +102,27 @@ function actualSize() {
 new ResizeObserver(fit).observe(cv.parentElement);
 const toWorld = (cx_, cy_) => { const r = cv.getBoundingClientRect(); return [((cx_ - r.left) * view.dpr - view.ox) / view.s, ((cy_ - r.top) * view.dpr - view.oy) / view.s]; };
 const worldT = c => c.setTransform(view.s, 0, 0, view.s, view.ox, view.oy);
+// The part of the paper that is on screen (plus a small margin), in world units. Zoomed in, the whole
+// paper is many times the screen; Safari can leave seams when filling shapes that big, so the paper,
+// its texture and shadow clips only ever cover what is visible.
+function onScreen(pad = 4) {
+  const m = pad * view.dpr / view.s;
+  const x0 = Math.max(0, -view.ox / view.s - m), y0 = Math.max(0, -view.oy / view.s - m);
+  const x1 = Math.min(PW(), (cv.width - view.ox) / view.s + m), y1 = Math.min(PH(), (cv.height - view.oy) / view.s + m);
+  return [x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0)];
+}
+function screenWorld(pad = 40) {
+  const m = pad * view.dpr / view.s;
+  return [-view.ox / view.s - m, -view.oy / view.s - m, cv.width / view.s + 2 * m, cv.height / view.s + 2 * m];
+}
 
 // the ink layer carries the paper colour too, so multiply-blended inks (felt, highlighter, pencil) mix with the paper
 let inkBg = '';
 function rebuildInk() {
   ictx.setTransform(1, 0, 0, 1, 0, 0); ictx.clearRect(0, 0, ink.width, ink.height);
-  worldT(ictx); ictx.fillStyle = P.bg; ictx.fillRect(0, 0, PW(), PH()); inkBg = P.bg;
+  worldT(ictx); ictx.fillStyle = P.bg; ictx.fillRect(...onScreen()); inkBg = P.bg;
   // save/restore so the clip doesn't pile up: a stale clip cut the ink at the old paper edge after zooming
-  ictx.save(); ictx.beginPath(); ictx.rect(0, 0, PW(), PH()); ictx.clip();
+  ictx.save(); ictx.beginPath(); ictx.rect(...onScreen()); ictx.clip();
   for (const L of layers) if (L.visible) {
     if (editId != null && L.id !== editId) { ictx.save(); ictx.globalAlpha = .25; strokeLayer(ictx, L); ictx.restore(); }
     else strokeLayer(ictx, L);
@@ -143,7 +156,7 @@ function gearPath(c, x, y, teeth, R, h, phase, tipOut) {
 function acrylic(c, shape, rgb, cx, cy, R, glow) {
   const [r, g, b] = rgb, px = view.dpr / view.s;
   c.save();
-  c.beginPath(); c.rect(-1e4, -1e4, 3e4, 3e4); shape(); c.clip('evenodd');
+  c.beginPath(); c.rect(...screenWorld()); shape(); c.clip('evenodd');
   c.beginPath(); shape();
   c.shadowColor = 'rgba(15,20,35,.30)'; c.shadowBlur = 9 * view.dpr; c.shadowOffsetX = 2.5 * view.dpr; c.shadowOffsetY = 5 * view.dpr;
   c.fillStyle = '#000'; c.fill('evenodd');
@@ -231,7 +244,7 @@ function paintGhost() {
   ghostKey = key; ghostCv.width = cv.width; ghostCv.height = cv.height;
   const c = gctx, p = t.pts;
   c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, ghostCv.width, ghostCv.height);
-  worldT(c); c.beginPath(); c.rect(0, 0, PW(), PH()); c.clip();
+  worldT(c); c.beginPath(); c.rect(...onScreen()); c.clip();
   c.strokeStyle = cur.color; c.lineWidth = Math.max(.9 * view.dpr / view.s, cur.width * .45); c.lineJoin = 'round';
   c.beginPath(); c.moveTo(p[0], p[1]); for (let i = 1; i <= t.N; i++) c.lineTo(p[(i % t.N) * 2], p[(i % t.N) * 2 + 1]); c.stroke();
 }
@@ -253,14 +266,15 @@ function frame(now) {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cv.width, cv.height);
   worldT(ctx);
   ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 30 * view.dpr; ctx.shadowOffsetY = 8 * view.dpr;
-  ctx.fillStyle = P.bg; ctx.fillRect(0, 0, PW(), PH()); ctx.restore();
+  ctx.fillStyle = P.bg; ctx.fillRect(...onScreen()); ctx.restore();
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(ink, 0, 0);
-  worldT(ctx); ctx.save(); ctx.beginPath(); ctx.rect(0, 0, PW(), PH()); ctx.clip();
+  const vis = onScreen();
+  worldT(ctx); ctx.save(); ctx.beginPath(); ctx.rect(...vis); ctx.clip();
   if (ghostVisible()) {
     paintGhost();
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = luminance(P.bg) > .5 ? .2 : .28; ctx.drawImage(ghostCv, 0, 0); ctx.restore();
   }
-  strokeLayer(ctx, cur); drawTexture(ctx, P.paper.texture, PW(), PH()); ctx.restore();
+  strokeLayer(ctx, cur); drawTexture(ctx, P.paper.texture, vis[2], vis[3], vis[0], vis[1]); ctx.restore();
   if (P.stencil) drawStencil(ctx, cur);
 }
 
@@ -295,13 +309,15 @@ function newLayerFromCurrent() {
   if (commit()) { S.shift = (S.shift + S.autoShift) % 1000; }
   cur = newLayer(); syncControls(); dirty();
 }
-// any change to pieces or pen: if ink is on the paper, that pass is finished and a new one starts
-function change(fn) {
+// any change to pieces or pen: if ink is on the paper, that pass is finished and a new one starts.
+// A pen-only change (keepPos) is like swapping pens with the wheel still in place: the new pass
+// carries on from where the wheel stopped instead of going back to the start tooth.
+function change(fn, keepPos = false) {
   stop();
-  const had = inked(cur);
+  const had = inked(cur), at = keepPos ? cur.pos : 0;
   fn(S);
-  if (had) { commit(); cur = newLayer(); }
-  else { const keep = { id: cur.id, a: 0, b: 0, pos: 0, visible: true }; cur = { ...cur, ...S, ...keep }; }
+  if (had) { commit(); cur = newLayer(); Object.assign(cur, { a: at, b: at, pos: at }); }
+  else { const keep = { id: cur.id, a: at, b: at, pos: at, visible: true }; cur = { ...cur, ...S, ...keep }; }
   syncControls(); dirty();
 }
 
@@ -475,11 +491,11 @@ function exportRaster(fmt) {
 }
 
 // ---------- UI wiring ----------
-function chips(box, items, get, set, label = v => v) {
+function chips(box, items, get, set, label = v => v, keepPos = false) {
   box.innerHTML = '';
   items.forEach(v => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = label(v);
-    b.addEventListener('click', () => change(s => set(s, v)));
+    b.addEventListener('click', () => change(s => set(s, v), keepPos));
     b.dataset.v = v; box.appendChild(b);
   });
   box._sync = () => [...box.children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v) === String(get())));
@@ -496,7 +512,7 @@ function swatches(box, list, get, set) {
   });
   box._sync = () => [...box.children].forEach(b => b.setAttribute('aria-pressed', b.dataset.v.toLowerCase() === get().toLowerCase()));
 }
-swatches($('#pens'), PENS, () => S.color, c => change(s => s.color = c));
+swatches($('#pens'), PENS, () => S.color, c => change(s => s.color = c, true));
 swatches($('#papers'), PAPERS, () => P.bg, c => { P.bg = c; syncControls(); save(); });
 (() => {
   const box = $('#tints'), names = { classic: 'Classic', mint: 'Mint', violet: 'Violet', smoke: 'Smoke', clear: 'Clear' };
@@ -508,13 +524,13 @@ swatches($('#papers'), PAPERS, () => P.bg, c => { P.bg = c; syncControls(); save
   box._sync = () => [...box.children].forEach(b => b.setAttribute('aria-pressed', b.dataset.v === P.tint));
 })();
 const bind = (sel, ev, fn) => $(sel).addEventListener(ev, fn);
-bind('#penColor', 'input', e => change(s => s.color = e.target.value));
-chips($('#penStyles'), Object.keys(PEN_STYLES), () => S.pen, (s, v) => { s.pen = v; s.width = PEN_STYLES[v].w; }, v => PEN_STYLES[v].label);
-bind('#rainbow', 'change', e => change(s => s.rainbow = e.target.checked));
+bind('#penColor', 'input', e => change(s => s.color = e.target.value, true));
+chips($('#penStyles'), Object.keys(PEN_STYLES), () => S.pen, (s, v) => { s.pen = v; s.width = PEN_STYLES[v].w; }, v => PEN_STYLES[v].label, true);
+bind('#rainbow', 'change', e => change(s => s.rainbow = e.target.checked, true));
 bind('#bgColor', 'input', e => { P.bg = e.target.value; syncControls(); save(); });
 bind('#hole', 'input', e => change(s => s.hole = +e.target.value - 1));
-bind('#width', 'input', e => change(s => s.width = +e.target.value));
-bind('#opacity', 'input', e => change(s => s.opacity = +e.target.value));
+bind('#width', 'input', e => change(s => s.width = +e.target.value, true));
+bind('#opacity', 'input', e => change(s => s.opacity = +e.target.value, true));
 bind('#pitch', 'input', e => change(s => { s.pitch = +e.target.value; s.hole = Math.min(s.hole, holesFor(s.wheel, s.pitch).length - 1); }));
 bind('#shiftDown', 'click', () => change(s => s.shift = (s.shift - 1 + 1000) % 1000));
 bind('#shiftUp', 'click', () => change(s => s.shift = (s.shift + 1) % 1000));

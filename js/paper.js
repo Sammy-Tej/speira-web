@@ -74,12 +74,12 @@ function textureTile(kind) {
 }
 const TEXTURE_STRENGTH = { grain: .55, cold: .75, kraft: .7 };
 // draw the texture over a paper of size w×h (world units) on a context already in world space
-function drawTexture(c, kind, w, h) {
+function drawTexture(c, kind, w, h, x = 0, y = 0) {
   const t = textureTile(kind); if (!t) return;
   const pat = c.createPattern(t, 'repeat');
   pat.setTransform(new DOMMatrix().scale(TILE_WORLD / TILE));
   c.save(); c.globalCompositeOperation = 'soft-light'; c.globalAlpha = TEXTURE_STRENGTH[kind];
-  c.fillStyle = pat; c.fillRect(0, 0, w, h); c.restore();
+  c.fillStyle = pat; c.fillRect(x, y, w, h); c.restore();
 }
 function textureSVG(kind, w, h) {
   const t = textureTile(kind); if (!t) return '';
