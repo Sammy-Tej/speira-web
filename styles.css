@@ -97,8 +97,8 @@ input[type=color] { width: 100%; height: 30px; border: 1px solid var(--line); bo
 .sw { aspect-ratio: 1; max-width: 100%; border-radius: 50%; border: 2px solid var(--line); background: var(--c); cursor: pointer; }
 .sw[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.layers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; }
-.layer { display: grid; grid-template-columns: 14px 1fr auto auto; align-items: center; gap: 8px; background: var(--desk); border: 1px solid var(--line); border-radius: 10px; padding: 6px 6px 6px 10px; }
+.layers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; }
+.layer { display: grid; grid-template-columns: 22px 14px 1fr auto auto auto; align-items: center; gap: 6px; background: var(--desk); border: 1px solid var(--line); border-radius: 10px; padding: 6px 4px 6px 4px; }
 .layer.hidden { opacity: .5; }
 .layer b { display: block; font-size: 12px; } .layer small { color: var(--faint); font-size: 11px; }
 .layer > div { min-width: 0; }
@@ -160,3 +160,29 @@ select.wide { width: 100%; height: 32px; border: 1px solid var(--line); border-r
 .svgstyles b { font-size: 13px; }
 .svgstyles small { color: var(--dim); font-size: 12px; line-height: 1.35; }
 #doExport { width: 100%; }
+
+.grip { display: grid; place-items: center; width: 24px; height: 34px; border: 1px solid var(--line); background: #2a2e36; color: var(--text); cursor: grab; border-radius: 7px; touch-action: none; }
+.grip svg { width: 16px; height: 16px; }
+.grip:hover { border-color: #5a6172; background: #333845; }
+body.dragging-layer, body.dragging-layer * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
+.layer.dragging { opacity: .85; border-color: var(--accent); box-shadow: 0 8px 22px rgba(0,0,0,.45); }
+.layer.dragging .grip { cursor: grabbing; }
+.layer.editing { border-color: var(--accent); }
+.layered { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; padding: 8px 6px 4px; border-top: 1px solid var(--line); margin-top: 4px; }
+.chips.small .chip { height: 26px; font-size: 10px; }
+.swatches.mini { grid-template-columns: repeat(12, 1fr); gap: 4px; }
+.swatches.mini .sw { border-width: 1px; }
+
+/* the Draw box stays pinned; the other sections fold away */
+.card.draw { position: sticky; top: -12px; z-index: 6; box-shadow: 0 10px 18px -10px rgba(0, 0, 0, .6); }
+.fold { padding: 0; gap: 0; }
+.fold > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 14px; cursor: pointer; border-radius: 14px; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary h2 { flex: 1; }
+.fold > summary:hover h2 { color: var(--text); }
+.fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.fold .chev { color: var(--faint); transition: transform .2s; }
+.fold[open] .chev { transform: rotate(180deg); }
+.foldbody { display: flex; flex-direction: column; gap: 12px; padding: 0 14px 14px; }
+@media (prefers-reduced-motion: reduce) { .fold .chev { transition: none; } }
+.draghint { color: var(--faint); font-size: 11px; align-self: center; }

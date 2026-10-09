@@ -74,8 +74,9 @@
         <span class="soundend"><output id="soundOut"></output><button class="ico" id="mute" type="button" aria-label="Mute clicks"><svg class="on"><use href="#i-speaker-high"/></svg><svg class="off"><use href="#i-speaker-slash"/></svg></button></span></div>
     </section>
 
-    <section class="card">
-      <h2>Pieces</h2>
+    <details class="card fold" data-fold="pieces">
+      <summary><h2>Pieces</h2><svg class="chev" aria-hidden="true"><use href="#i-caret-down"/></svg></summary>
+      <div class="foldbody">
       <div class="field"><span class="lbl">Ring <small>inner / outer teeth</small></span><div class="chips two" id="rings"></div></div>
       <div class="field"><span class="lbl">Wheel rolls</span><div class="chips two" id="modes"></div></div>
       <div class="field"><span class="lbl">Wheel <small>teeth</small></span><div class="chips grid" id="wheels"></div></div>
@@ -89,20 +90,24 @@
         <button class="btn sm" id="centre" type="button">Centre ring</button>
         <button class="btn sm" id="surprise" type="button"><svg><use href="#i-shuffle"/></svg>Surprise me</button>
       </div>
-    </section>
+      </div>
+    </details>
 
-    <section class="card">
-      <h2>Pen</h2>
+    <details class="card fold" data-fold="pen">
+      <summary><h2>Pen</h2><svg class="chev" aria-hidden="true"><use href="#i-caret-down"/></svg></summary>
+      <div class="foldbody">
       <div class="chips pens4" id="penStyles"></div>
       <div class="swatches" id="pens"></div>
       <label class="check"><input type="checkbox" id="rainbow"> Rainbow ink <small>colour shifts along the line, starting from your pen colour</small></label>
       <label class="row"><span>Custom colour</span><input type="color" id="penColor"><span></span></label>
       <label class="row"><span>Thickness</span><input type="range" id="width" min=".4" max="10" step=".1"><output id="widthOut"></output></label>
       <label class="row"><span>Opacity</span><input type="range" id="opacity" min=".1" max="1" step=".05"><output id="opacityOut"></output></label>
-    </section>
+      </div>
+    </details>
 
-    <section class="card">
-      <h2>Paper</h2>
+    <details class="card fold" data-fold="paper">
+      <summary><h2>Paper</h2><svg class="chev" aria-hidden="true"><use href="#i-caret-down"/></svg></summary>
+      <div class="foldbody">
       <div class="field"><span class="lbl">Size</span><select id="paperPreset" class="wide"></select></div>
       <div class="custompaper" id="customPaper" hidden>
         <input type="number" id="pw" step="any" aria-label="Paper width"><span>×</span><input type="number" id="ph" step="any" aria-label="Paper height">
@@ -114,13 +119,16 @@
       <label class="row"><span>Custom colour</span><input type="color" id="bgColor"><span></span></label>
       <label class="check"><input type="checkbox" id="autoHide"> Hide the pieces when a pattern finishes</label>
       <div class="field"><span class="lbl">Piece colours</span><div class="tints" id="tints"></div></div>
-    </section>
+      </div>
+    </details>
 
-    <section class="card">
-      <h2>Layers <small id="layerCount"></small></h2>
+    <details class="card fold" data-fold="layers">
+      <summary><h2>Layers <small id="layerCount"></small></h2><svg class="chev" aria-hidden="true"><use href="#i-caret-down"/></svg></summary>
+      <div class="foldbody">
       <ul class="layers" id="layers"></ul>
       <button class="btn sm danger" id="clear" type="button">Clear paper</button>
-    </section>
+      </div>
+    </details>
   </aside>
 </main>
 <script src="js/geometry.js"></script>

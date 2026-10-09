@@ -8,7 +8,7 @@ const PAPERS = [['#ffffff', 'White'], ['#f6f1e7', 'Cream'], ['#e8d8b9', 'Kraft']
 
 // ---------- state ----------
 const S = { ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0, pen: 'ballpoint', rainbow: false };
-const P = { bg: '#ffffff', stencil: true, autoHide: true, ghost: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic', paper: { ...DEFAULT_PAPER }, svgMode: 'effects', exportFmt: 'png', jpgQ: .9 };
+const P = { bg: '#ffffff', stencil: true, autoHide: true, ghost: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic', paper: { ...DEFAULT_PAPER }, svgMode: 'effects', exportFmt: 'png', jpgQ: .9, folds: { pieces: true, pen: false, paper: false, layers: false } };
 const PW = () => paperWorld(P.paper)[0], PH = () => paperWorld(P.paper)[1];
 let layers = [], cur = null, playing = false, uid = 1;
 let past = [], future = [];
@@ -79,7 +79,10 @@ function rebuildInk() {
   ictx.setTransform(1, 0, 0, 1, 0, 0); ictx.clearRect(0, 0, ink.width, ink.height);
   worldT(ictx); ictx.fillStyle = P.bg; ictx.fillRect(0, 0, PW(), PH()); inkBg = P.bg;
   ictx.beginPath(); ictx.rect(0, 0, PW(), PH()); ictx.clip();
-  for (const L of layers) if (L.visible) strokeLayer(ictx, L);
+  for (const L of layers) if (L.visible) {
+    if (editId != null && L.id !== editId) { ictx.save(); ictx.globalAlpha = .25; strokeLayer(ictx, L); ictx.restore(); }
+    else strokeLayer(ictx, L);
+  }
   inkDirty = false;
 }
 
@@ -435,6 +438,12 @@ bind('#sound', 'input', e => { P.sound = +e.target.value; $('#soundOut').textCon
 bind('#mute', 'click', () => { P.sound = P.sound > 0 ? 0 : .35; syncControls(); save(); });
 bind('#moveRing', 'click', () => { moveMode = !moveMode; $('#moveRing').setAttribute('aria-pressed', moveMode); cv.classList.toggle('moving', moveMode); });
 bind('#centre', 'click', () => change(s => { s.cx = PW() / 2; s.cy = PH() / 2; }));
+// ---------- folding sections: remember which ones are open ----------
+document.querySelectorAll('.fold').forEach(d => {
+  const k = d.dataset.fold; d.open = !!(P.folds || {})[k];
+  d.addEventListener('toggle', () => { P.folds = { ...P.folds, [k]: d.open }; save(); });
+});
+
 // ---------- export panel: one button, pick PNG / JPG / SVG, then that format's options ----------
 const exportBtn = $('#exportBtn'), panel = $('#exportPanel');
 const FMT_NOTES = {
@@ -566,19 +575,105 @@ function readout() {
   $('#petals').textContent = G.petals; $('#laps').textContent = G.laps;
   $('#progress').style.width = (prog * 100).toFixed(1) + '%'; $('#progOut').textContent = Math.round(prog * 100) + '%';
 }
+// ---------- layer list: show/hide, delete, edit a finished pass, drag to reorder ----------
+let editId = null, editArmed = false;
+const layerTitle = L => `${RINGS[L.ring].inner}/${RINGS[L.ring].outer} · ${L.wheel} wheel`;
+const layerSub = L => `${penName(L)}${L.rainbow ? ' rainbow' : ''} · ${L.mode} · hole ${L.hole + 1} · shift ${L.shift}`;
+function refreshRow(li, L) {
+  li.querySelector('.dot').className = 'dot' + (L.rainbow ? ' rainbow' : ''); li.querySelector('.dot').style.setProperty('--c', L.color);
+  li.querySelector('small').textContent = layerSub(L);
+}
+// apply an edit to a finished layer without rebuilding the list (so a slider being dragged keeps focus)
+function editLayer(L, li, fn) {
+  if (!editArmed) { remember(); editArmed = true; }
+  fn(L); inkDirty = true; save(); refreshRow(li, L);
+}
+function moveLayer(L, by) {
+  const i = layers.indexOf(L), j = clampN(i + by, 0, layers.length - 1);
+  if (i === j) return;
+  remember(); layers.splice(i, 1); layers.splice(j, 0, L); dirty();
+}
+function editorFor(L, li) {
+  const ed = document.createElement('div'); ed.className = 'layered';
+  ed.innerHTML = `<div class="chips pens4 small">${Object.keys(PEN_STYLES).map(k => `<button type="button" class="chip" data-pen="${k}" aria-pressed="${k === (L.pen || 'ballpoint')}">${PEN_STYLES[k].label}</button>`).join('')}</div>
+    <div class="swatches mini">${PENS.map(c => `<button type="button" class="sw" data-c="${c}" style="--c:${c}" aria-label="Colour ${c}" aria-pressed="${c.toLowerCase() === L.color.toLowerCase()}"></button>`).join('')}</div>
+    <label class="row"><span>Colour</span><input type="color" value="${L.color}" data-k="color"><span></span></label>
+    <label class="row"><span>Thickness</span><input type="range" min=".4" max="12" step=".1" value="${L.width}" data-k="width"><output>${(+L.width).toFixed(1)}</output></label>
+    <label class="row"><span>Opacity</span><input type="range" min=".1" max="1" step=".05" value="${L.opacity}" data-k="opacity"><output>${Math.round(L.opacity * 100)}%</output></label>
+    <label class="check"><input type="checkbox" data-k="rainbow" ${L.rainbow ? 'checked' : ''}> Rainbow ink</label>
+    <div class="btnrow"><button type="button" class="btn sm" data-done>Done</button><small class="draghint">Drag ⋮⋮ to change the order</small></div>`;
+  ed.addEventListener('change', () => { editArmed = false; });
+  ed.querySelectorAll('[data-pen]').forEach(b => b.addEventListener('click', () => {
+    editArmed = false; editLayer(L, li, l => { l.pen = b.dataset.pen; l.width = PEN_STYLES[l.pen].w; });
+    ed.querySelectorAll('[data-pen]').forEach(x => x.setAttribute('aria-pressed', x === b));
+    const w = ed.querySelector('[data-k="width"]'); w.value = L.width; w.nextElementSibling.textContent = (+L.width).toFixed(1); editArmed = false;
+  }));
+  ed.querySelectorAll('[data-c]').forEach(b => b.addEventListener('click', () => {
+    editArmed = false; editLayer(L, li, l => l.color = b.dataset.c); editArmed = false;
+    ed.querySelectorAll('[data-c]').forEach(x => x.setAttribute('aria-pressed', x === b)); ed.querySelector('[data-k="color"]').value = L.color;
+  }));
+  ed.querySelectorAll('[data-k]').forEach(inp => inp.addEventListener('input', () => {
+    const k = inp.dataset.k, v = k === 'rainbow' ? inp.checked : k === 'color' ? inp.value : +inp.value;
+    editLayer(L, li, l => l[k] = v);
+    if (k === 'width') inp.nextElementSibling.textContent = v.toFixed(1);
+    if (k === 'opacity') inp.nextElementSibling.textContent = Math.round(v * 100) + '%';
+    if (k === 'rainbow') editArmed = false;
+  }));
+  ed.querySelector('[data-done]').addEventListener('click', () => { editId = null; inkDirty = true; renderLayers(); });
+  return ed;
+}
+// drag a row by its handle. The pointer is followed at window level: moving the row in the DOM
+// would cancel pointer capture on the handle, which is why it used to stop after one step.
+function dragRow(e, li, list) {
+  e.preventDefault();
+  const id = e.pointerId, ids = () => [...list.querySelectorAll('.layer')].map(r => r.dataset.id).join(), before = ids();
+  li.classList.add('dragging'); document.body.classList.add('dragging-layer');
+  let lastY = e.clientY, scrollTimer = null;
+  const place = y => {
+    const rows = [...list.querySelectorAll('.layer')].filter(r => r !== li);
+    const next = rows.find(r => { const b = r.getBoundingClientRect(); return y < b.top + b.height / 2; });
+    if (next) { if (next !== li.nextElementSibling) list.insertBefore(li, next); }
+    else if (li !== list.lastElementChild) list.appendChild(li);
+  };
+  // scroll the list when dragging near its top or bottom edge
+  const edgeScroll = () => {
+    const b = list.getBoundingClientRect(), zone = 36;
+    const v = lastY < b.top + zone ? -(b.top + zone - lastY) / 3 : lastY > b.bottom - zone ? (lastY - (b.bottom - zone)) / 3 : 0;
+    if (v) { list.scrollTop += v; place(lastY); }
+  };
+  const move = ev => { if (ev.pointerId !== id) return; lastY = ev.clientY; place(lastY); };
+  const end = ev => {
+    if (ev.pointerId !== id) return;
+    removeEventListener('pointermove', move); removeEventListener('pointerup', end); removeEventListener('pointercancel', end);
+    clearInterval(scrollTimer); li.classList.remove('dragging'); document.body.classList.remove('dragging-layer');
+    if (ids() === before) return;
+    remember();
+    const byId = new Map(layers.map(l => [l.id, l]));
+    layers = [...list.querySelectorAll('.layer')].map(r => byId.get(+r.dataset.id)).reverse();   // the list shows newest on top
+    dirty();
+  };
+  scrollTimer = setInterval(edgeScroll, 16);
+  addEventListener('pointermove', move); addEventListener('pointerup', end); addEventListener('pointercancel', end);
+}
 function renderLayers() {
   const list = $('#layers'); list.innerHTML = '';
-  const all = [...layers].reverse();
+  if (editId != null && !layers.some(l => l.id === editId)) editId = null;
   $('#layerCount').textContent = layers.length ? `${layers.length} finished` : 'None yet';
-  if (!all.length) { list.innerHTML = '<li class="empty">Finished passes appear here. Press <b>New layer</b> to keep a pass and start the next one.</li>'; return; }
-  all.forEach(L => {
-    const li = document.createElement('li'); li.className = 'layer' + (L.visible ? '' : ' hidden');
-    li.innerHTML = `<i class="dot${L.rainbow ? ' rainbow' : ''}" style="--c:${L.color}"></i><div><b>${RINGS[L.ring].inner}/${RINGS[L.ring].outer} · ${L.wheel} wheel</b><small>${penName(L)}${L.rainbow ? ' rainbow' : ''} · ${L.mode} · hole ${L.hole + 1} · shift ${L.shift}</small></div>
+  if (!layers.length) { list.innerHTML = '<li class="empty">Finished passes appear here. Press <b>New layer</b> to keep a pass and start the next one.</li>'; return; }
+  [...layers].reverse().forEach(L => {
+    const li = document.createElement('li'); li.className = 'layer' + (L.visible ? '' : ' hidden') + (L.id === editId ? ' editing' : ''); li.dataset.id = L.id;
+    li.innerHTML = `<button type="button" class="grip" aria-label="Drag to reorder"><svg><use href="#i-dots-six-vertical"/></svg></button>
+      <i class="dot${L.rainbow ? ' rainbow' : ''}" style="--c:${L.color}"></i><div><b>${layerTitle(L)}</b><small>${layerSub(L)}</small></div>
+      <button type="button" class="ico" aria-label="Edit layer" aria-expanded="${L.id === editId}"><svg><use href="#i-pencil-simple"/></svg></button>
       <button type="button" class="ico" aria-label="${L.visible ? 'Hide' : 'Show'} layer"><svg><use href="#i-${L.visible ? 'eye' : 'eye-slash'}"/></svg></button>
       <button type="button" class="ico" aria-label="Delete layer"><svg><use href="#i-trash"/></svg></button>`;
-    const [eye, del] = li.querySelectorAll('button');
+    const [grip, edit, eye, del] = li.querySelectorAll('button');
+    grip.addEventListener('pointerdown', e => dragRow(e, li, list));
+    grip.addEventListener('keydown', e => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); moveLayer(L, e.key === 'ArrowUp' ? 1 : -1); $(`.layer[data-id="${L.id}"] .grip`)?.focus(); } });
+    edit.addEventListener('click', () => { editId = editId === L.id ? null : L.id; editArmed = false; inkDirty = true; renderLayers(); });
     eye.addEventListener('click', () => { remember(); L.visible = !L.visible; dirty(); });
     del.addEventListener('click', () => { remember(); layers = layers.filter(x => x !== L); dirty(); });
+    if (L.id === editId) li.appendChild(editorFor(L, li));
     list.appendChild(li);
   });
 }
