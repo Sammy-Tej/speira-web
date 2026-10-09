@@ -133,7 +133,8 @@ input[type=color] { width: 100%; height: 30px; border: 1px solid var(--line); bo
 .check small { color: var(--faint); font-size: 11px; }
 .dot.rainbow { background: conic-gradient(#e63946, #fcbf49, #06d6a0, #3a86ff, #7b2cbf, #e63946); }
 
-.stagebtn { position: absolute; top: 12px; right: 12px; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+.stagebar { position: absolute; top: 12px; right: 12px; display: flex; gap: 8px; }
+.stagebtn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
   border-radius: 999px; border: 1px solid var(--line); background: rgba(35, 38, 45, .88); color: var(--text); font: 600 12px var(--ui); cursor: pointer; backdrop-filter: blur(6px); }
 .stagebtn:hover { border-color: #4a5060; }
 .stagebtn[aria-pressed="false"] { color: var(--accent); border-color: var(--accent); }

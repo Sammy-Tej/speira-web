@@ -8,7 +8,7 @@ const PAPERS = [['#ffffff', 'White'], ['#f6f1e7', 'Cream'], ['#e8d8b9', 'Kraft']
 
 // ---------- state ----------
 const S = { ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0, pen: 'ballpoint', rainbow: false };
-const P = { bg: '#ffffff', stencil: true, autoHide: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic', paper: { ...DEFAULT_PAPER }, svgMode: 'effects', exportFmt: 'png', jpgQ: .9 };
+const P = { bg: '#ffffff', stencil: true, autoHide: true, ghost: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic', paper: { ...DEFAULT_PAPER }, svgMode: 'effects', exportFmt: 'png', jpgQ: .9 };
 const PW = () => paperWorld(P.paper)[0], PH = () => paperWorld(P.paper)[1];
 let layers = [], cur = null, playing = false, uid = 1;
 let past = [], future = [];
@@ -187,6 +187,21 @@ function tick(strength = 1) {
   src.connect(bp).connect(g).connect(actx.destination); src.start(now);
 }
 
+// ---------- ghost preview: the full pattern for the current settings, faint, screen only ----------
+const ghostCv = document.createElement('canvas'), gctx = ghostCv.getContext('2d');
+let ghostKey = '';
+function paintGhost() {
+  const t = tr(cur), key = [cur._key, cur.color, view.s, view.ox, view.oy, cv.width, cv.height, PW(), PH()].join();
+  if (key === ghostKey) return;
+  ghostKey = key; ghostCv.width = cv.width; ghostCv.height = cv.height;
+  const c = gctx, p = t.pts;
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, ghostCv.width, ghostCv.height);
+  worldT(c); c.beginPath(); c.rect(0, 0, PW(), PH()); c.clip();
+  c.strokeStyle = cur.color; c.lineWidth = Math.max(.9 * view.dpr / view.s, cur.width * .45); c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(p[0], p[1]); for (let i = 1; i <= t.N; i++) c.lineTo(p[(i % t.N) * 2], p[(i % t.N) * 2 + 1]); c.stroke();
+}
+const ghostVisible = () => P.ghost && cur.b - cur.a < tr(cur).G.total - 1e-6;
+
 // ---------- frame ----------
 let lastT = performance.now();
 function frame(now) {
@@ -206,6 +221,10 @@ function frame(now) {
   ctx.fillStyle = P.bg; ctx.fillRect(0, 0, PW(), PH()); ctx.restore();
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(ink, 0, 0);
   worldT(ctx); ctx.save(); ctx.beginPath(); ctx.rect(0, 0, PW(), PH()); ctx.clip();
+  if (ghostVisible()) {
+    paintGhost();
+    ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = luminance(P.bg) > .5 ? .2 : .28; ctx.drawImage(ghostCv, 0, 0); ctx.restore();
+  }
   strokeLayer(ctx, cur); drawTexture(ctx, P.paper.texture, PW(), PH()); ctx.restore();
   if (P.stencil) drawStencil(ctx, cur);
 }
@@ -496,6 +515,8 @@ function resOptions() {
 let autoHidden = false;
 function showPieces(on, auto = false) { P.stencil = on; autoHidden = !on && auto; syncControls(); save(); }
 bind('#pieceToggle', 'click', () => showPieces(!P.stencil));
+const showGhost = on => { P.ghost = on; syncControls(); save(); };
+bind('#ghostToggle', 'click', () => showGhost(!P.ghost));
 bind('#autoHide', 'change', e => { P.autoHide = e.target.checked; save(); });
 bind('#transparent', 'change', e => { P.transparent = e.target.checked; save(); });
 bind('#surprise', 'click', () => change(s => {
@@ -524,6 +545,7 @@ function syncControls() {
   $('#speed').value = sliderFromSpeed(P.speed); $('#speedOut').textContent = P.speed.toFixed(2) + ' laps/s';
   $('#autoHide').checked = P.autoHide;
   const pt = $('#pieceToggle'); pt.setAttribute('aria-pressed', P.stencil); pt.querySelector('use').setAttribute('href', P.stencil ? '#i-eye' : '#i-eye-slash'); pt.querySelector('span').textContent = P.stencil ? 'Pieces shown' : 'Pieces hidden';
+  const gt = $('#ghostToggle'); gt.setAttribute('aria-pressed', P.ghost); gt.querySelector('span').textContent = P.ghost ? 'Preview on' : 'Preview off';
   const pp = P.paper; presetSel.value = pp.preset; $('#customPaper').hidden = pp.preset !== 'custom';
   $('#pw').value = fmtNum(pp.w); $('#ph').value = fmtNum(pp.h); $('#punit').value = pp.unit; $('#paperDims').textContent = paperLabel(pp);
   $('#orient').disabled = pp.w === pp.h; resOptions(); $('#textures')._sync(); $('#momentum').checked = P.momentum; $('#oneWay').checked = P.oneWay;
@@ -575,6 +597,7 @@ addEventListener('keydown', e => {
   else if (e.key === 'Enter' && !e.target.matches('button')) { e.preventDefault(); newLayerFromCurrent(); }
   else if (e.key === 'f') finish();
   else if (e.key === 'h') showPieces(!P.stencil);
+  else if (e.key === 'g') showGhost(!P.ghost);
   else if (e.key === '[') change(s => s.hole = Math.max(0, s.hole - 1));
   else if (e.key === ']') change(s => s.hole = Math.min(holesFor(s.wheel, s.pitch).length - 1, s.hole + 1));
   else if (e.key === ',') change(s => s.shift = (s.shift - 1 + 1000) % 1000);

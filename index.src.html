@@ -44,8 +44,11 @@
 <main class="app">
   <section class="stage" aria-label="Paper">
     <canvas id="paper" aria-label="Drawing paper. Drag to roll the wheel."></canvas>
-    <button class="stagebtn" id="pieceToggle" type="button" aria-pressed="true" title="Show or hide the pieces (H)"><svg><use href="#i-eye"/></svg><span>Pieces shown</span></button>
-    <p class="hint">Drag on the paper to roll the wheel · click a hole to move the pen · <kbd>Space</kbd> draw · <kbd>Enter</kbd> new layer</p>
+    <div class="stagebar">
+      <button class="stagebtn" id="ghostToggle" type="button" aria-pressed="true" title="Faint preview of the whole pattern before you draw it (G)"><svg><use href="#i-circle-dashed"/></svg><span>Preview on</span></button>
+      <button class="stagebtn" id="pieceToggle" type="button" aria-pressed="true" title="Show or hide the pieces (H)"><svg><use href="#i-eye"/></svg><span>Pieces shown</span></button>
+    </div>
+    <p class="hint">Drag on the paper to roll the wheel · click a hole to move the pen · <kbd>Space</kbd> draw · <kbd>Enter</kbd> new layer · <kbd>G</kbd> preview · <kbd>H</kbd> pieces</p>
     <div id="toast" role="status" aria-live="polite"></div>
   </section>
 
