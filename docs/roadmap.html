@@ -1,0 +1,141 @@
+<title>Speira Roadmap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;600&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<style>
+/* Layout: one reading column, like the cram book — header, a "now" callout, overall progress bar, sticky phase links, then each phase as a timeline list. */
+:root {
+  --paper:#F5F6F2; --surface:#FFFFFF; --ink:#17202B; --muted:#586272; --line:#D8DCE2;
+  --accent:#2A44B5; --accent-soft:#E3E8FA; --hl:#FBE38A;
+  --warn:#8F5200; --warn-soft:#FFF1D6; --ok:#1D7446; --ok-soft:#E2F3E8; --code:#ECEEF2; --later:#7C86A8;
+  --display:"Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,sans-serif;
+  --body:"Literata",Georgia,"Times New Roman",serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper:#111418; --surface:#181C22; --ink:#E7EAEE; --muted:#9AA3AF; --line:#2A3039;
+  --accent:#93A6FF; --accent-soft:#1E2645; --hl:#5A4A0C;
+  --warn:#FFB951; --warn-soft:#33260C; --ok:#6FD39C; --ok-soft:#12301F; --code:#1F242C; --later:#4A5372; color-scheme:dark; } }
+:root[data-theme="dark"] {
+  --paper:#111418; --surface:#181C22; --ink:#E7EAEE; --muted:#9AA3AF; --line:#2A3039;
+  --accent:#93A6FF; --accent-soft:#1E2645; --hl:#5A4A0C;
+  --warn:#FFB951; --warn-soft:#33260C; --ok:#6FD39C; --ok-soft:#12301F; --code:#1F242C; --later:#4A5372; color-scheme:dark; }
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 17px; line-height: 1.62; padding-inline: 16px; }
+.wrap { max-width: 760px; margin: 0 auto; padding-block: 40px 110px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.3rem, 7vw, 3.5rem); font-weight: 800; letter-spacing: -.02em; }
+h2 { font-size: clamp(1.6rem, 4.5vw, 2.1rem); font-weight: 700; letter-spacing: -.01em; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); font-size: .84em; }
+code { background: var(--code); padding: .08em .35em; border-radius: 4px; }
+.eyebrow { font-family: var(--mono); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 1.12rem; color: var(--muted); max-width: 62ch; }
+header.top { display: flex; flex-direction: column; gap: 14px; }
+.toprow { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.source { font-family: var(--mono); font-size: .76rem; color: var(--muted); line-height: 1.5; }
+.theme { font-family: var(--mono); font-size: .74rem; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 5px 12px; cursor: pointer; }
+.theme:focus-visible, nav.jump a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.now { background: var(--warn-soft); border-radius: 10px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; margin-top: 28px; }
+.now ul { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 4px; }
+.now b { font-family: var(--display); }
+
+.overall { margin-top: 28px; display: flex; flex-direction: column; gap: 10px; }
+.bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; gap: 2px; background: var(--code); }
+.bar span { display: block; min-width: 2px; }
+.s-done { background: var(--ok); } .s-now { background: var(--warn); } .s-next { background: var(--accent); } .s-planned { background: var(--later); } .s-idea { background: var(--line); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-family: var(--mono); font-size: .74rem; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; }
+.legend b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+nav.jump { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--paper); border-bottom: 1px solid var(--line); margin-inline: -16px; padding: 10px 16px; overflow-x: auto; white-space: nowrap; margin-top: 28px; }
+nav.jump a { font-family: var(--mono); font-size: .8rem; text-decoration: none; color: var(--ink); padding: 6px 10px; border-radius: 999px; display: inline-block; }
+nav.jump a:hover { background: var(--accent-soft); color: var(--accent); }
+nav.jump a.cur { background: var(--accent); color: var(--paper); }
+
+section { padding-top: 56px; display: flex; flex-direction: column; gap: 14px; scroll-margin-top: 56px; }
+section + section { border-top: 1px solid var(--line); margin-top: 56px; }
+.phasehead { display: flex; flex-direction: column; gap: 6px; }
+.pill { font-family: var(--mono); font-size: .68rem; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; white-space: nowrap; align-self: flex-start; }
+.pill.done { background: var(--ok-soft); color: var(--ok); } .pill.now { background: var(--warn-soft); color: var(--warn); }
+.pill.planned, .pill.next { background: var(--accent-soft); color: var(--accent); } .pill.later { background: var(--code); color: var(--muted); }
+.minibar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; gap: 2px; background: var(--code); max-width: 280px; }
+.minibar span { display: block; }
+
+.plan { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.plan li { display: grid; grid-template-columns: 78px 1fr; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+.plan li > div { min-width: 0; }
+.plan .st { font-family: var(--mono); font-size: .74rem; letter-spacing: .04em; text-transform: uppercase; display: flex; align-items: flex-start; gap: 8px; padding-top: 4px; color: var(--muted); }
+.plan .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; margin-top: 4px; }
+.plan b { font-family: var(--display); font-weight: 700; }
+.plan p { color: var(--muted); font-size: .95rem; }
+.plan .ref { font-family: var(--mono); font-size: .74rem; color: var(--muted); margin-top: 4px; }
+.plan li.st-now { background: linear-gradient(90deg, var(--warn-soft), transparent 70%); }
+.empty { color: var(--muted); padding: 24px 0; border-top: 1px solid var(--line); margin-top: 28px; }
+@media (max-width: 480px) { .plan li { grid-template-columns: 64px 1fr; gap: 10px; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="toprow"><span class="eyebrow">Speira · build roadmap</span><button class="theme" id="theme" type="button">Theme: system</button></div>
+    <h1>Speira roadmap</h1>
+    <p class="lede" id="lede">Every phase from the first ring and wheel to the iPad and Mac apps, with what is finished, what is being built now, and what comes next.</p>
+    <p class="source" id="source"></p>
+  </header>
+  <div id="app">
+    <p class="empty" id="empty">Loading the roadmap… Entries come from Speira's tracker and appear here as soon as it answers.</p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s), esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const LABEL = { done: 'Done', now: 'Now', next: 'Next', planned: 'Planned', idea: 'Idea' };
+  const PHASE_LABEL = { done: 'Done', now: 'In progress', planned: 'Planned', later: 'Later' };
+  const state = { items: [], phases: [], meta: null };
+
+  // theme: system → light → dark
+  const root = document.documentElement, modes = ['system', 'light', 'dark'];
+  let mode = 'system'; try { mode = localStorage.getItem('speira-roadmap-theme') || 'system'; } catch {}
+  const applyTheme = () => { if (mode === 'system') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', mode); $('#theme').textContent = 'Theme: ' + mode; };
+  $('#theme').addEventListener('click', () => { mode = modes[(modes.indexOf(mode) + 1) % 3]; try { localStorage.setItem('speira-roadmap-theme', mode); } catch {} applyTheme(); });
+  applyTheme();
+
+  const segs = items => {
+    const n = items.length || 1, c = {}; items.forEach(i => c[i.status] = (c[i.status] || 0) + 1);
+    return ['done', 'now', 'next', 'planned', 'idea'].filter(k => c[k]).map(k => `<span class="s-${k}" style="width:${c[k] / n * 100}%" title="${LABEL[k]}: ${c[k]}"></span>`).join('');
+  };
+  function render() {
+    const { items, phases, meta } = state;
+    if (meta) {
+      if (meta.headline) $('#lede').textContent = meta.headline;
+      $('#source').textContent = [meta.updated && 'Updated ' + meta.updated, meta.branch && 'branch ' + meta.branch, meta.lastCommit && 'last commit ' + meta.lastCommit].filter(Boolean).join(' · ');
+    }
+    if (!phases.length) return;
+    const sorted = [...phases].sort((a, b) => a.order - b.order), byPhase = id => items.filter(i => i.phase === id).sort((a, b) => a.order - b.order);
+    const nowItems = items.filter(i => i.status === 'now' || i.status === 'next').sort((a, b) => (a.status === 'now' ? 0 : 1) - (b.status === 'now' ? 0 : 1) || a.order - b.order);
+    const counted = items.filter(i => i.status !== 'idea'), c = {}; counted.forEach(i => c[i.status] = (c[i.status] || 0) + 1);
+    let html = '';
+    if (nowItems.length) html += `<div class="now"><span class="eyebrow">Where we are</span><ul>${nowItems.slice(0, 4).map(i => `<li><b>${LABEL[i.status]}:</b> ${esc(i.title)}</li>`).join('')}</ul></div>`;
+    html += `<div class="overall"><span class="eyebrow">Overall progress</span><div class="bar">${segs(counted)}</div>
+      <div class="legend">${['done', 'now', 'next', 'planned'].map(k => `<span><i class="s-${k}"></i>${LABEL[k]} <b>${c[k] || 0}</b></span>`).join('')}<span>of <b>${counted.length}</b> items</span></div></div>`;
+    html += `<nav class="jump" aria-label="Phases">${sorted.map(p => `<a href="#${esc(p.id)}" class="${p.status === 'now' ? 'cur' : ''}">${esc(p.short || p.name)}</a>`).join('')}</nav>`;
+    for (const p of sorted) {
+      const list = byPhase(p.id);
+      html += `<section id="${esc(p.id)}"><div class="phasehead"><span class="pill ${esc(p.status)}">${PHASE_LABEL[p.status] || esc(p.status)}</span><h2>${esc(p.name)}</h2>${p.summary ? `<p class="lede">${esc(p.summary)}</p>` : ''}${list.length ? `<div class="minibar">${segs(list)}</div>` : ''}</div>
+        <ol class="plan">${list.map(i => `<li class="st-${esc(i.status)}"><span class="st"><span class="dot s-${esc(i.status)}"></span>${LABEL[i.status] || esc(i.status)}</span><div><b>${esc(i.title)}</b>${i.detail ? `<p>${esc(i.detail)}</p>` : ''}${i.ref || i.date ? `<div class="ref">${[i.ref && 'commit ' + esc(i.ref), esc(i.date)].filter(Boolean).join(' · ')}</div>` : ''}</div></li>`).join('')}</ol></section>`;
+    }
+    $('#app').innerHTML = html;
+  }
+
+  const start = async () => {
+    const db = window.claude && window.claude.use ? await window.claude.use('db') : null;
+    if (!db) { $('#empty').textContent = 'Open this page on claude.ai while signed in to see the live roadmap.'; return; }
+    const snap = (name, key) => db.collection(name).onSnapshot(s => { state[key] = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, () => { $('#empty').textContent = 'The roadmap could not load. Reload the page to try again.'; });
+    snap('items', 'items'); snap('phases', 'phases');
+    db.doc('meta/status').onSnapshot(d => { state.meta = d.exists ? d.data() : null; render(); }, () => {});
+  };
+  start();
+})();
+</script>

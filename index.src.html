@@ -48,7 +48,13 @@
       <button class="stagebtn" id="ghostToggle" type="button" aria-pressed="true" title="Faint preview of the whole pattern before you draw it (G)"><svg><use href="#i-circle-dashed"/></svg><span>Preview on</span></button>
       <button class="stagebtn" id="pieceToggle" type="button" aria-pressed="true" title="Show or hide the pieces (H)"><svg><use href="#i-eye"/></svg><span>Pieces shown</span></button>
     </div>
-    <p class="hint">Drag on the paper to roll the wheel · click a hole to move the pen · <kbd>Space</kbd> draw · <kbd>Enter</kbd> new layer · <kbd>G</kbd> preview · <kbd>H</kbd> pieces</p>
+    <div class="zoombar" role="group" aria-label="Zoom">
+      <button class="zbtn" id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out (⌘−)"><svg><use href="#i-magnifying-glass-minus"/></svg></button>
+      <button class="zbtn zpct" id="zoomPct" type="button" title="Fit the paper to the window (⌘0) · ⌘1 for actual size">Fit</button>
+      <button class="zbtn" id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in (⌘+)"><svg><use href="#i-magnifying-glass-plus"/></svg></button>
+      <button class="zbtn" id="zoomFull" type="button" aria-label="Full screen" title="Full screen (⌃⌘F)"><svg><use href="#i-corners-out"/></svg></button>
+    </div>
+    <p class="hint">Drag on the paper to roll the wheel · click a hole to move the pen · <kbd>Space</kbd> draw · <kbd>Enter</kbd> new layer · pinch or <kbd>⌘</kbd><kbd>+</kbd> zoom · two-finger scroll pans</p>
     <div id="toast" role="status" aria-live="polite"></div>
   </section>
 

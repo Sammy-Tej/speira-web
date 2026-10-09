@@ -60,14 +60,44 @@ const ink = document.createElement('canvas'), ictx = ink.getContext('2d');
 const view = { s: 1, ox: 0, oy: 0, dpr: 1 };
 let inkDirty = true;
 const dirty = () => { inkDirty = true; save(); renderLayers(); readout(); };
+// camera on top of the fit: cam.z = zoom relative to "paper fits the window", cam.x/y = pan in device px
+const cam = { z: 1, x: 0, y: 0 };
+let fitS = 1;
 function fit() {
   const r = cv.parentElement.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
   cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
   cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px';
   ink.width = cv.width; ink.height = cv.height;
-  const W = PW(), H = PH(), s = Math.min(r.width / W, r.height / H) * .9;
-  Object.assign(view, { s: s * dpr, ox: (cv.width - W * s * dpr) / 2, oy: (cv.height - H * s * dpr) / 2, dpr });
+  fitS = Math.min(r.width / PW(), r.height / PH()) * .9 * dpr; view.dpr = dpr;
+  applyView();
+}
+function applyView() {
+  const W = PW(), H = PH(), s = fitS * cam.z, keep = 80 * view.dpr;
+  // pan is limited so at least ~80px of paper always stays on screen
+  const lx = Math.max(0, (cv.width + W * s) / 2 - keep), ly = Math.max(0, (cv.height + H * s) / 2 - keep);
+  cam.x = clampN(cam.x, -lx, lx); cam.y = clampN(cam.y, -ly, ly);
+  Object.assign(view, { s, ox: (cv.width - W * s) / 2 + cam.x, oy: (cv.height - H * s) / 2 + cam.y });
   inkDirty = true;
+  const fitted = Math.abs(cam.z - 1) < .005 && Math.abs(cam.x) < 1 && Math.abs(cam.y) < 1;
+  $('#zoomPct').textContent = fitted ? 'Fit' : Math.round(cam.z * 100) + '%';
+}
+// zoom so the point under (clientX, clientY) stays put; no point = the middle of the stage
+function zoomTo(z, clientX, clientY) {
+  const r = cv.getBoundingClientRect();
+  const sx = ((clientX ?? r.left + r.width / 2) - r.left) * view.dpr, sy = ((clientY ?? r.top + r.height / 2) - r.top) * view.dpr;
+  const wx = (sx - view.ox) / view.s, wy = (sy - view.oy) / view.s;
+  cam.z = clampN(z, .2, 32);
+  const s = fitS * cam.z;
+  cam.x = sx - wx * s - (cv.width - PW() * s) / 2; cam.y = sy - wy * s - (cv.height - PH() * s) / 2;
+  applyView();
+}
+const zoomBy = (f, x, y) => zoomTo(cam.z * f, x, y);
+const panBy = (dx, dy) => { cam.x += dx * view.dpr; cam.y += dy * view.dpr; applyView(); };
+function resetView() { cam.z = 1; cam.x = cam.y = 0; applyView(); }
+// actual size: real millimetres on screen (CSS 96 dpi), or one image pixel per screen point for pixel papers
+function actualSize() {
+  const cssPerUnit = P.paper.unit === 'px' ? P.paper.w / PW() : 96 / 25.4 / MM;
+  zoomTo(cssPerUnit * view.dpr / fitS); toast('Actual size');
 }
 new ResizeObserver(fit).observe(cv.parentElement);
 const toWorld = (cx_, cy_) => { const r = cv.getBoundingClientRect(); return [((cx_ - r.left) * view.dpr - view.ox) / view.s, ((cy_ - r.top) * view.dpr - view.oy) / view.s]; };
@@ -78,11 +108,13 @@ let inkBg = '';
 function rebuildInk() {
   ictx.setTransform(1, 0, 0, 1, 0, 0); ictx.clearRect(0, 0, ink.width, ink.height);
   worldT(ictx); ictx.fillStyle = P.bg; ictx.fillRect(0, 0, PW(), PH()); inkBg = P.bg;
-  ictx.beginPath(); ictx.rect(0, 0, PW(), PH()); ictx.clip();
+  // save/restore so the clip doesn't pile up: a stale clip cut the ink at the old paper edge after zooming
+  ictx.save(); ictx.beginPath(); ictx.rect(0, 0, PW(), PH()); ictx.clip();
   for (const L of layers) if (L.visible) {
     if (editId != null && L.id !== editId) { ictx.save(); ictx.globalAlpha = .25; strokeLayer(ictx, L); ictx.restore(); }
     else strokeLayer(ictx, L);
   }
+  ictx.restore();
   inkDirty = false;
 }
 
@@ -275,9 +307,24 @@ function change(fn) {
 
 // ---------- pointer: hand-rolling, picking holes, moving the ring ----------
 let drag = null;
+// two fingers on a touch screen always mean zoom/pan, never rolling: a second finger cancels the roll
+// the first finger started (and takes back any ink it laid), and nothing rolls again until every finger lifts
+const touches = new Map();
+let pinch = null, pinchHold = false;
+const twoFinger = () => { const [a, b] = [...touches.values()]; return { mx: (a[0] + b[0]) / 2, my: (a[1] + b[1]) / 2, d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1 }; };
 cv.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'touch') {
+    touches.set(e.pointerId, [e.clientX, e.clientY]);
+    if (touches.size >= 2) {
+      if (drag && drag.kind === 'roll') { Object.assign(cur, drag.from); coast = null; inkDirty = true; }
+      drag = null; cv.classList.remove('rolling');
+      pinch = twoFinger(); pinchHold = true; return;
+    }
+  }
+  if (pinchHold) return;
   const [x, y] = toWorld(e.clientX, e.clientY);
   try { cv.setPointerCapture(e.pointerId); } catch {}
+  if (e.button === 1) { e.preventDefault(); drag = { kind: 'pan', x: e.clientX, y: e.clientY }; cv.classList.add('panning'); return; }
   if (moveMode || e.altKey) { drag = { kind: 'move' }; return; }
   if (P.stencil) {
     const G = geom(cur), w = wheelAt(G, cur, cur.pos), tol = Math.max(G.p * .32, 10 * view.dpr / view.s);
@@ -287,10 +334,18 @@ cv.addEventListener('pointerdown', e => {
   stop();
   if (autoHidden) showPieces(true);
   remember();
-  drag = { kind: 'roll', last: Math.atan2(y - cur.cy, x - cur.cx), samples: [] };
+  drag = { kind: 'roll', last: Math.atan2(y - cur.cy, x - cur.cx), samples: [], from: { pos: cur.pos, a: cur.a, b: cur.b } };
   cv.classList.add('rolling');
 });
 cv.addEventListener('pointermove', e => {
+  if (touches.has(e.pointerId)) touches.set(e.pointerId, [e.clientX, e.clientY]);
+  if (pinch) {
+    if (touches.size < 2) return;
+    const n = twoFinger();
+    zoomBy(n.d / pinch.d, n.mx, n.my); panBy(n.mx - pinch.mx, n.my - pinch.my);
+    pinch = n; return;
+  }
+  if (drag && drag.kind === 'pan') { panBy(e.clientX - drag.x, e.clientY - drag.y); drag.x = e.clientX; drag.y = e.clientY; return; }
   const [x, y] = toWorld(e.clientX, e.clientY);
   if (!drag) {
     let over = false;
@@ -311,9 +366,47 @@ const endDrag = () => {
     const v = span > .01 ? sum / span : 0;
     if (Math.abs(v) > .6 && (!P.oneWay || v > 0)) coast = { v: clampN(v, -40, 40) };
   }
-  drag = null; cv.classList.remove('rolling'); syncPlay();
+  drag = null; cv.classList.remove('rolling', 'panning'); syncPlay();
 };
-cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+const pointerEnd = e => {
+  touches.delete(e.pointerId);
+  if (touches.size < 2) pinch = null;
+  if (!touches.size) pinchHold = false;
+  endDrag();
+};
+cv.addEventListener('pointerup', pointerEnd); cv.addEventListener('pointercancel', pointerEnd);
+// trackpad: pinch arrives as ctrl+wheel (Chrome, Firefox) or gesture events (Safari); two-finger scroll pans
+let gesture = null;
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (gesture) return;
+  const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+  if (e.ctrlKey || e.metaKey) zoomBy(Math.exp(-clampN(e.deltaY * k, -60, 60) * .01), e.clientX, e.clientY);
+  else panBy(-e.deltaX * k, -e.deltaY * k);
+}, { passive: false });
+cv.addEventListener('gesturestart', e => { e.preventDefault(); if (!touches.size) gesture = { z: cam.z }; });
+cv.addEventListener('gesturechange', e => { e.preventDefault(); if (gesture) zoomTo(gesture.z * e.scale, e.clientX, e.clientY); });
+cv.addEventListener('gestureend', e => { e.preventDefault(); gesture = null; });
+// keep Safari from zooming the whole page when a pinch starts off the canvas
+document.addEventListener('gesturestart', e => e.preventDefault());
+$('#zoomIn').addEventListener('click', () => zoomBy(1.25));
+$('#zoomOut').addEventListener('click', () => zoomBy(.8));
+$('#zoomPct').addEventListener('click', resetView);
+// full screen shows just the stage: paper, zoom bar and toggles; Esc leaves
+const stageEl = cv.parentElement;
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+function toggleFullscreen() {
+  if (fsEl()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  else (stageEl.requestFullscreen || stageEl.webkitRequestFullscreen).call(stageEl);
+}
+function syncFullscreen() {
+  const on = !!fsEl(), b = $('#zoomFull');
+  b.querySelector('use').setAttribute('href', on ? '#i-corners-in' : '#i-corners-out');
+  b.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen');
+  b.title = on ? 'Leave full screen (Esc)' : 'Full screen (⌃⌘F)';
+}
+$('#zoomFull').addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', syncFullscreen); document.addEventListener('webkitfullscreenchange', syncFullscreen);
 let moveMode = false;
 
 // ---------- export ----------
@@ -481,7 +574,7 @@ function setPaper(fn) {
   fn(P.paper);
   const [w1, h1] = paperWorld(P.paper), dx = (w1 - w0) / 2, dy = (h1 - h0) / 2;
   if (dx || dy) for (const L of [...layers, cur, S]) { L.cx += dx; L.cy += dy; }
-  fit(); ringKey = ''; syncControls(); dirty();
+  cam.z = 1; cam.x = cam.y = 0; fit(); ringKey = ''; syncControls(); dirty();
 }
 const presetSel = $('#paperPreset');
 Object.entries(PAPER_PRESETS).forEach(([k, v]) => presetSel.add(new Option(v.label, k)));
@@ -687,6 +780,11 @@ addEventListener('keydown', e => {
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); exportNow(); return; }
   if (mod && e.key.toLowerCase() === 'e') { e.preventDefault(); openExport(panel.hidden); return; }
+  if (mod && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomBy(1.25); return; }
+  if (mod && (e.key === '-' || e.key === '_')) { e.preventDefault(); zoomBy(.8); return; }
+  if (mod && e.key === '0') { e.preventDefault(); resetView(); return; }
+  if (mod && e.key === '1') { e.preventDefault(); actualSize(); return; }
+  if (e.metaKey && e.ctrlKey && e.key.toLowerCase() === 'f') { e.preventDefault(); toggleFullscreen(); return; }
   if (mod) return;
   if (e.key === ' ' && !e.target.matches('button')) { e.preventDefault(); playing ? stop() : play(); }
   else if (e.key === 'Enter' && !e.target.matches('button')) { e.preventDefault(); newLayerFromCurrent(); }
