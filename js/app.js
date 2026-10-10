@@ -219,8 +219,11 @@ function drawStencil(c, L, v = view, ring = mainRing, glow = hoverWheel || (drag
     }
   });
   printed(c, String(G.t), w.wx, w.wy, clampN(G.rr * .22, 9 * px, 40), w.spin + Math.PI / 2, rgb, .7);
-  c.beginPath(); c.arc(w.px, w.py, Math.max(G.p * .28, 4 * px), 0, TAU); c.fillStyle = L.color; c.fill();
-  c.lineWidth = 2 * px; c.strokeStyle = 'rgba(255,255,255,.95)'; c.stroke();
+  c.beginPath(); c.arc(w.px, w.py, Math.max(G.p * .28, 4 * px), 0, TAU);
+  if (v === view && penUp) {   // lifted: a hollow, dashed pen tip
+    c.save(); c.globalAlpha = .35; c.fillStyle = L.color; c.fill(); c.restore();
+    c.save(); c.setLineDash([3 * px, 2.5 * px]); c.lineWidth = 2 * px; c.strokeStyle = 'rgba(255,255,255,.95)'; c.stroke(); c.restore();
+  } else { c.fillStyle = L.color; c.fill(); c.lineWidth = 2 * px; c.strokeStyle = 'rgba(255,255,255,.95)'; c.stroke(); }
   if (spacingScreen <= 12) printed(c, 'hole ' + (G.hole + 1), w.px, w.py - Math.max(G.p * .7, 14 * px), 11 * px, 0, rgb, .9);
 }
 
@@ -289,8 +292,10 @@ function advance(d) {
   const G = tr(cur).G;
   if (P.oneWay && d < 0) return;
   const before = Math.floor(cur.pos * G.T / TAU);
-  cur.pos += d; cur.a = Math.min(cur.a, cur.pos); cur.b = Math.max(cur.b, cur.pos);
+  cur.pos += d;
   if (Math.floor(cur.pos * G.T / TAU) !== before) tick(playing ? .55 : 1);
+  if (penUp) { readout(); return; }   // pen lifted: the wheel turns, nothing is drawn
+  cur.a = Math.min(cur.a, cur.pos); cur.b = Math.max(cur.b, cur.pos);
   if (cur.b - cur.a >= G.total) {
     cur.b = cur.a + G.total;
     if (playing || coast) { stop(); coast = null; toast('Pattern complete — it closed after ' + G.laps + (G.laps === 1 ? ' lap' : ' laps')); if (P.autoHide && P.stencil) showPieces(false, true); }
@@ -299,12 +304,28 @@ function advance(d) {
 }
 function play() {
   if (autoHidden) showPieces(true);
+  if (penUp) setPen(false);
   if (cur.b - cur.a >= tr(cur).G.total) newLayerFromCurrent();
   remember();
   playing = true; syncPlay();
 }
 function stop() { playing = false; coast = null; syncPlay(); }
-function finish() { stop(); remember(); const G = tr(cur).G; cur.b = cur.a + G.total; cur.pos = cur.b; readout(); save(); if (P.autoHide && P.stencil) showPieces(false, true); }
+function finish() { stop(); if (penUp) setPen(false); remember(); const G = tr(cur).G; cur.b = cur.a + G.total; cur.pos = cur.b; readout(); save(); if (P.autoHide && P.stencil) showPieces(false, true); }
+// Lift the pen: roll the wheel somewhere new without drawing, then put the pen down.
+// A layer is one unbroken line, so if the pen comes down away from what it already drew,
+// that pass is kept and a new one (same pieces and pen) starts right there.
+let penUp = false;
+function setPen(up) {
+  if (up === penUp) return;
+  penUp = up;
+  if (!up) {
+    const off = cur.pos < cur.a - 1e-9 || cur.pos > cur.b + 1e-9;
+    if (inked(cur) && off) { const pos = cur.pos; commit(); cur = newLayer(); Object.assign(cur, { a: pos, b: pos, pos }); dirty(); toast('Pen down: a new pass starts here'); }
+    else if (!inked(cur)) { cur.a = cur.b = cur.pos; }
+  }
+  syncPen(); readout(); save();
+}
+function syncPen() { $('#penLift').checked = penUp; }
 function commit() {
   if (!inked(cur)) return false;
   remember(); layers.push(cur); cur = null; return true;
@@ -546,6 +567,7 @@ bind('#speed', 'input', e => { P.speed = speedFromSlider(+e.target.value); $('#s
 bind('#play', 'click', () => playing ? stop() : play());
 bind('#finish', 'click', finish);
 bind('#newLayer', 'click', newLayerFromCurrent);
+bind('#penLift', 'change', e => { stop(); setPen(e.target.checked); });
 bind('#undo', 'click', undo); bind('#redo', 'click', redo);
 bind('#momentum', 'change', e => { P.momentum = e.target.checked; save(); });
 bind('#oneWay', 'change', e => { P.oneWay = e.target.checked; save(); });
@@ -814,6 +836,7 @@ addEventListener('keydown', e => {
   else if (e.key === 'h') showPieces(!P.stencil);
   else if (e.key === 'g') showGhost(!P.ghost);
   else if (e.key === 'w' && window.SpeiraWatch) SpeiraWatch.enter();
+  else if (e.key === 'l') { stop(); setPen(!penUp); }
   else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.target.matches('input, select, textarea, .grip')) {
     // roll the wheel with the keyboard: one tooth per press (hold to keep rolling), Shift for ten
     e.preventDefault(); stop();

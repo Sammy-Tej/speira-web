@@ -87,7 +87,7 @@
       <button class="zbtn" id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in (⌘+)"><svg><use href="#i-magnifying-glass-plus"/></svg></button>
       <button class="zbtn" id="zoomFull" type="button" aria-label="Full screen" title="Full screen (⌃⌘F)"><svg><use href="#i-corners-out"/></svg></button>
     </div>
-    <p class="hint">Drag on the paper to roll the wheel · click a hole to move the pen · <kbd>←</kbd><kbd>→</kbd> roll a tooth · <kbd>Space</kbd> draw · <kbd>Enter</kbd> new layer · pinch or <kbd>⌘</kbd><kbd>+</kbd> zoom · two-finger scroll pans</p>
+    <p class="hint">Drag on the paper to roll the wheel · click a hole to move the pen · <kbd>←</kbd><kbd>→</kbd> roll a tooth · <kbd>L</kbd> lift the pen · <kbd>Space</kbd> draw · <kbd>Enter</kbd> new layer · pinch or <kbd>⌘</kbd><kbd>+</kbd> zoom · two-finger scroll pans</p>
     <div id="toast" role="status" aria-live="polite"></div>
   </section>
 
@@ -108,6 +108,7 @@
       <div class="feel">
         <label class="check"><input type="checkbox" id="momentum"> Momentum <small>flick the wheel to keep it rolling</small></label>
         <label class="check"><input type="checkbox" id="oneWay"> One-way <small>never rolls backwards</small></label>
+        <label class="check" title="L"><input type="checkbox" id="penLift"> Lift the pen <small>roll somewhere new without drawing</small></label>
       </div>
       <div class="row"><span>Tooth clicks</span><input type="range" id="sound" min="0" max="1" step=".05" aria-label="Tooth click volume">
         <span class="soundend"><output id="soundOut"></output><button class="ico" id="mute" type="button" aria-label="Mute clicks"><svg class="on"><use href="#i-speaker-high"/></svg><svg class="off"><use href="#i-speaker-slash"/></svg></button></span></div>
