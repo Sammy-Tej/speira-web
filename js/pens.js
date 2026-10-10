@@ -101,9 +101,9 @@ function buildPlan(L, xy, lightPaper, lapPts = 400) {
         const r2 = hash01(i, seed + 1), r3 = hash01(i, seed + 2), j = (r3 - .5) * W * .8;
         const c = r2 < .4 ? '#ffffff' : (light || mixHex(colourAt(i), '#ffffff', .6)), a = Math.round((.55 + r3 * .45) * 4) / 4;
         const key = c + a;
-        if (!dots.has(key)) { const op = { k: 'dots', c, a, list: [], stars: [] }; dots.set(key, op); ops.push(op); }
+        if (!dots.has(key)) { const op = { k: 'dots', c, a, list: [], stars: [], ix: [] }; dots.set(key, op); ops.push(op); }
         const r = W * (.14 + r2 * .32), x = xy[i * 2] + j, y = xy[i * 2 + 1] - j;
-        dots.get(key).list.push(x, y, r);
+        dots.get(key).list.push(x, y, r); dots.get(key).ix.push(i);   // ix: point index, so a dot can appear as the line reaches it
         if (r2 > .9) dots.get(key).stars.push(x, y, r);
       }
       break;

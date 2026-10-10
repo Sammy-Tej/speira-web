@@ -16,12 +16,14 @@ let past = [], future = [];
 const newLayer = () => ({ id: uid++, ...S, a: 0, b: 0, pos: 0, visible: true });
 const inked = L => L && L.b - L.a > 1e-6;
 const strip = L => { const { _tr, _key, _plan, _pk, _xy, ...rest } = L; return rest; };
-const snapshot = () => JSON.stringify({ layers: layers.map(strip), cur: strip(cur), paper: P.paper });
-function restore(json) { const o = JSON.parse(json); layers = o.layers; cur = o.cur; if (o.paper) { P.paper = o.paper; fit(); ringKey = ''; } uid = Math.max(uid, ...layers.map(l => l.id + 1), cur.id + 1); Object.assign(S, pickS(cur)); syncControls(); dirty(); }
+// withBg: also remember the paper colour (only for steps that change it, like keeping a Just watch picture)
+const snapshot = (withBg = false) => JSON.stringify({ layers: layers.map(strip), cur: strip(cur), paper: P.paper, ...(withBg ? { bg: P.bg } : {}) });
+const hasBg = json => JSON.parse(json).bg != null;
+function restore(json) { const o = JSON.parse(json); layers = o.layers; cur = o.cur; if (o.bg) P.bg = o.bg; if (o.paper) { P.paper = o.paper; fit(); mainRing.key = ''; } uid = Math.max(uid, ...layers.map(l => l.id + 1), cur.id + 1); Object.assign(S, pickS(cur)); syncControls(); dirty(); }
 const pickS = L => Object.fromEntries(Object.keys(S).map(k => [k, L[k]]));
-function remember() { past.push(snapshot()); if (past.length > 200) past.shift(); future = []; }
-function undo() { if (!past.length) return; future.push(snapshot()); restore(past.pop()); stop(); }
-function redo() { if (!future.length) return; past.push(snapshot()); restore(future.pop()); stop(); }
+function remember(withBg = false) { past.push(snapshot(withBg)); if (past.length > 200) past.shift(); future = []; }
+function undo() { if (!past.length) return; const s = past.pop(); future.push(snapshot(hasBg(s))); restore(s); stop(); }
+function redo() { if (!future.length) return; const s = future.pop(); past.push(snapshot(hasBg(s))); restore(s); stop(); }
 
 function save() {
   clearTimeout(save.t);
@@ -111,9 +113,9 @@ function onScreen(pad = 4) {
   const x1 = Math.min(PW(), (cv.width - view.ox) / view.s + m), y1 = Math.min(PH(), (cv.height - view.oy) / view.s + m);
   return [x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0)];
 }
-function screenWorld(pad = 40) {
-  const m = pad * view.dpr / view.s;
-  return [-view.ox / view.s - m, -view.oy / view.s - m, cv.width / view.s + 2 * m, cv.height / view.s + 2 * m];
+function screenWorld(pad = 40, v = view, W = cv.width, H = cv.height) {
+  const m = pad * v.dpr / v.s;
+  return [-v.ox / v.s - m, -v.oy / v.s - m, W / v.s + 2 * m, H / v.s + 2 * m];
 }
 
 // the ink layer carries the paper colour too, so multiply-blended inks (felt, highlighter, pencil) mix with the paper
@@ -153,12 +155,13 @@ function gearPath(c, x, y, teeth, R, h, phase, tipOut) {
   c.closePath();
 }
 // Paint one acrylic piece: soft shadow on the paper (outside the piece only), tinted body, sheen, bevelled edge.
-function acrylic(c, shape, rgb, cx, cy, R, glow) {
-  const [r, g, b] = rgb, px = view.dpr / view.s;
+// v: the view to draw in (the main paper's by default; Just watch passes its own)
+function acrylic(c, shape, rgb, cx, cy, R, glow, v = view) {
+  const [r, g, b] = rgb, px = v.dpr / v.s;
   c.save();
-  c.beginPath(); c.rect(...screenWorld()); shape(); c.clip('evenodd');
+  c.beginPath(); c.rect(...screenWorld(40, v, c.canvas.width, c.canvas.height)); shape(); c.clip('evenodd');
   c.beginPath(); shape();
-  c.shadowColor = 'rgba(15,20,35,.30)'; c.shadowBlur = 9 * view.dpr; c.shadowOffsetX = 2.5 * view.dpr; c.shadowOffsetY = 5 * view.dpr;
+  c.shadowColor = 'rgba(15,20,35,.30)'; c.shadowBlur = 9 * v.dpr; c.shadowOffsetX = 2.5 * v.dpr; c.shadowOffsetY = 5 * v.dpr;
   c.fillStyle = '#000'; c.fill('evenodd');
   c.restore();
   c.save();
@@ -182,26 +185,28 @@ function printed(c, text, x, y, size, rot, rgb, alpha = .75) {
   c.restore();
 }
 // The ring never moves while drawing, so it is painted once into its own layer and reused.
-const ringCv = document.createElement('canvas'), rctx = ringCv.getContext('2d');
-let ringKey = '';
-function paintRing(L, G) {
-  const key = [L.ring, L.pitch, L.cx, L.cy, P.tint, view.s, view.ox, view.oy, cv.width, cv.height].join();
-  if (key === ringKey) return;
-  ringKey = key; ringCv.width = cv.width; ringCv.height = cv.height;
-  const c = rctx, ring = G.ring, h = G.p * .55, Ri = radiusOf(ring.inner, G.p), Ro = radiusOf(ring.outer, G.p), rgb = TINTS[P.tint][0];
-  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, ringCv.width, ringCv.height); worldT(c);
-  acrylic(c, () => { gearPath(c, L.cx, L.cy, ring.outer, Ro, h, 0, true); gearPath(c, L.cx, L.cy, ring.inner, Ri, h, 0, false); }, rgb, L.cx, L.cy, Ro, false);
+// A ring cache is { cv, key }: one for the main paper, one for Just watch.
+const ringCache = () => ({ cv: document.createElement('canvas'), key: '' });
+const mainRing = ringCache();
+function paintRing(L, G, v, out, W, H) {
+  const key = [L.ring, L.pitch, L.cx, L.cy, P.tint, v.s, v.ox, v.oy, W, H].join();
+  if (key === out.key) return;
+  out.key = key; out.cv.width = W; out.cv.height = H;
+  const c = out.cv.getContext('2d'), ring = G.ring, h = G.p * .55, Ri = radiusOf(ring.inner, G.p), Ro = radiusOf(ring.outer, G.p), rgb = TINTS[P.tint][0];
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);
+  acrylic(c, () => { gearPath(c, L.cx, L.cy, ring.outer, Ro, h, 0, true); gearPath(c, L.cx, L.cy, ring.inner, Ri, h, 0, false); }, rgb, L.cx, L.cy, Ro, false, v);
   const band = (Ro - h / 2) - (Ri + h / 2), mid = (Ri + h / 2 + Ro - h / 2) / 2, fs = clampN(band * .2, 8, 30);
   printed(c, String(ring.inner), L.cx, L.cy - (Ri + h / 2 + fs * .9), fs, 0, rgb);
   printed(c, String(ring.outer), L.cx, L.cy - (Ro - h / 2 - fs * .9), fs * .8, 0, rgb, .6);
   for (let i = 0; i < 4; i++) { const a = -Math.PI / 2 + Math.PI / 4 + i * Math.PI / 2; c.beginPath(); c.arc(L.cx + mid * Math.cos(a), L.cy + mid * Math.sin(a), G.p * .12, 0, TAU); c.fillStyle = `rgba(${rgb.join()},.45)`; c.fill(); }
 }
-function drawStencil(c, L) {
-  const G = geom(L), w = wheelAt(G, L, L.pos), h = G.p * .55, px = view.dpr / view.s, rgb = TINTS[P.tint][1];
-  paintRing(L, G);
-  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(ringCv, 0, 0); c.restore();
+function drawStencil(c, L, v = view, ring = mainRing, glow = hoverWheel || (drag && drag.kind === 'roll')) {
+  const G = geom(L), w = wheelAt(G, L, L.pos), h = G.p * .55, px = v.dpr / v.s, rgb = TINTS[P.tint][1];
+  paintRing(L, G, v, ring, c.canvas.width, c.canvas.height);
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(ring.cv, 0, 0); c.restore();
+  c.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);   // the wheel is drawn in this view's world units (Just watch has its own view)
   const phase = w.spin + (G.inside ? 0 : Math.PI) + Math.PI / G.t;
-  acrylic(c, () => gearPath(c, w.wx, w.wy, G.t, G.rr, h, phase, true), rgb, w.wx, w.wy, G.rr, hoverWheel || (drag && drag.kind === 'roll'));
+  acrylic(c, () => gearPath(c, w.wx, w.wy, G.t, G.rr, h, phase, true), rgb, w.wx, w.wy, G.rr, glow, v);
   const holeR = G.p * .17, holeScreen = holeR / px, spacingScreen = G.p * .42 / px;
   G.holes.forEach((ho, i) => {
     const hx = w.wx + ho.d * Math.cos(w.spin + ho.a), hy = w.wy + ho.d * Math.sin(w.spin + ho.a), on = i === G.hole;
@@ -255,6 +260,7 @@ let lastT = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(.05, (now - lastT) / 1000); lastT = now;
+  if (document.body.classList.contains('watching')) return;   // Just watch has the screen; the drawing waits
   if (!cv.width || !cv.height) { fit(); if (!cv.width || !cv.height) return; }
   if (playing) advance(P.speed * TAU * dt);
   else if (coast) {
@@ -590,7 +596,7 @@ function setPaper(fn) {
   fn(P.paper);
   const [w1, h1] = paperWorld(P.paper), dx = (w1 - w0) / 2, dy = (h1 - h0) / 2;
   if (dx || dy) for (const L of [...layers, cur, S]) { L.cx += dx; L.cy += dy; }
-  cam.z = 1; cam.x = cam.y = 0; fit(); ringKey = ''; syncControls(); dirty();
+  cam.z = 1; cam.x = cam.y = 0; fit(); mainRing.key = ''; syncControls(); dirty();
 }
 const presetSel = $('#paperPreset');
 Object.entries(PAPER_PRESETS).forEach(([k, v]) => presetSel.add(new Option(v.label, k)));
@@ -807,6 +813,7 @@ addEventListener('keydown', e => {
   else if (e.key === 'f') finish();
   else if (e.key === 'h') showPieces(!P.stencil);
   else if (e.key === 'g') showGhost(!P.ghost);
+  else if (e.key === 'w' && window.SpeiraWatch) SpeiraWatch.enter();
   else if (e.key === '[') change(s => s.hole = Math.max(0, s.hole - 1));
   else if (e.key === ']') change(s => s.hole = Math.min(holesFor(s.wheel, s.pitch).length - 1, s.hole + 1));
   else if (e.key === ',') change(s => s.shift = (s.shift - 1 + 1000) % 1000);
@@ -817,5 +824,14 @@ addEventListener('keydown', e => {
 if (!load()) cur = newLayer();
 syncControls(); fit(); dirty();
 requestAnimationFrame(frame);
-window.SpiroLab = { get layers() { return layers; }, get cur() { return cur; }, S, P, exportSVG, exportPNG, finish, newLayerFromCurrent, change };
+// Just watch "Keep": its layers become this drawing, on black paper, centred; one ⌘Z brings back what was here
+function adopt(list) {
+  stop(); remember(true);
+  const dx = PW() / 2 - 500, dy = PH() / 2 - 500;
+  layers = list.map(L => ({ ...pickS({ ...S, ...L }), autoShift: 0, cx: L.cx + dx, cy: L.cy + dy, id: uid++, a: L.a, b: L.b, pos: L.b, visible: true }));
+  cur = newLayer(); P.bg = '#000000';
+  syncControls(); dirty();
+}
+window.SpiroLab = { get layers() { return layers; }, get cur() { return cur; }, S, P, exportSVG, exportPNG, finish, newLayerFromCurrent, change,
+  adopt, ringCache, drawPieces: (c, L, v, ring) => drawStencil(c, L, v, ring, false) };
 })();

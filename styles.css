@@ -193,3 +193,36 @@ body.dragging-layer, body.dragging-layer * { cursor: grabbing !important; user-s
 .foldbody { display: flex; flex-direction: column; gap: 12px; padding: 0 14px 14px; }
 @media (prefers-reduced-motion: reduce) { .fold .chev { transition: none; } }
 .draghint { color: var(--faint); font-size: 11px; align-self: center; }
+
+/* Just watch: full screen, true black, controls only while the mouse moves */
+.watch { position: fixed; inset: 0; z-index: 100; background: #000; cursor: none; }
+.watch.awake { cursor: auto; }
+.watch canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+/* width: max-content, or the bar shrinks to half the screen (it starts at left: 50%) and wraps early */
+.wbar { position: absolute; left: 50%; bottom: 28px; transform: translate(-50%, 8px); display: flex; flex-direction: column; align-items: center; gap: 8px;
+  width: max-content; max-width: calc(100% - 32px); padding: 8px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, .1); background: rgba(20, 22, 27, .72); backdrop-filter: blur(12px);
+  opacity: 0; pointer-events: none; transition: opacity .35s, transform .35s; }
+.watch.awake .wbar { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.wseg { display: flex; gap: 2px; padding: 3px; border-radius: 11px; background: rgba(255, 255, 255, .05); }
+.wseg button { height: 30px; padding: 0 11px; border: 0; border-radius: 8px; background: none; color: var(--dim); font: 600 12px var(--ui); cursor: pointer; }
+.wseg button:hover { color: var(--text); }
+.wseg button[aria-pressed="true"] { background: rgba(255, 255, 255, .12); color: var(--text); }
+.wbtn { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 10px; background: rgba(255, 255, 255, .06); color: var(--text); cursor: pointer; }
+.wbtn:hover { background: rgba(255, 255, 255, .14); }
+.wbtn .off, .wbtn[aria-pressed="true"] .on { display: none; }
+.wbtn[aria-pressed="true"] .off { display: block; }
+#wMute[aria-pressed="true"] { color: var(--accent); }
+.wsound { display: flex; align-items: center; gap: 6px; }
+.wsound input { width: 90px; }
+.whint { position: absolute; left: 0; right: 0; top: 18px; margin: 0; text-align: center; color: rgba(255, 255, 255, .45); font-size: 12px; opacity: 0; transition: opacity .35s; pointer-events: none; padding: 0 16px; }
+.watch.awake .whint { opacity: 1; }
+.wrow { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.wtog { display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 12px; border: 1px solid transparent; border-radius: 10px; background: rgba(255, 255, 255, .06); color: var(--dim); font: 600 12px var(--ui); cursor: pointer; }
+.wtog:hover { color: var(--text); background: rgba(255, 255, 255, .12); }
+.wtog[aria-pressed="true"] { color: var(--text); border-color: rgba(255, 255, 255, .28); background: rgba(255, 255, 255, .12); }
+.wtog svg { width: 16px; height: 16px; }
+.wcode { display: flex; align-items: center; gap: 6px; color: var(--faint); font-size: 12px; }
+.wcode input { width: 9ch; height: 32px; padding: 0 8px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 8px; background: rgba(0, 0, 0, .35); color: var(--text); font: 600 13px var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.wtoast { position: absolute; top: 48px; left: 50%; transform: translate(-50%, -6px); max-width: calc(100% - 32px); padding: 8px 14px; border-radius: 999px; background: rgba(20, 22, 27, .85); border: 1px solid rgba(255, 255, 255, .12); color: var(--text); font-size: 13px; text-align: center; opacity: 0; transition: opacity .25s, transform .25s; pointer-events: none; }
+.wtoast.show { opacity: 1; transform: translate(-50%, 0); }
+.wlbl { align-self: center; padding: 0 6px 0 8px; color: var(--faint); font-size: 12px; }

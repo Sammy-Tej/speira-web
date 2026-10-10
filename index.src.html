@@ -8,6 +8,38 @@
 </head>
 <body>
 %%ICONS%%
+<div class="watch" id="watch" hidden>
+  <canvas id="watchCv" aria-label="Speira drawing by itself"></canvas>
+  <div class="wbar" id="wbar">
+    <div class="wrow">
+      <div class="wseg" id="wSpeed" role="group" aria-label="Speed">
+        <button type="button" data-speed="calm">Calm</button><button type="button" data-speed="normal">Normal</button><button type="button" data-speed="lively">Lively</button>
+      </div>
+      <div class="wseg" id="wMood" role="group" aria-label="Colours">
+        <button type="button" data-mood="auto">Auto</button><button type="button" data-mood="aurora">Aurora</button><button type="button" data-mood="ember">Ember</button><button type="button" data-mood="ocean">Ocean</button><button type="button" data-mood="neon">Neon</button><button type="button" data-mood="metallic">Metallic</button>
+      </div>
+      <button class="wtog" id="wRainbow" type="button" aria-pressed="false" title="Rainbow ink on every layer (R)"><svg><use href="#i-rainbow"/></svg><span>Rainbow</span></button>
+      <button class="wtog" id="wPieces" type="button" aria-pressed="false" title="Show the ring and wheel (P)"><svg><use href="#i-eye"/></svg><span>Pieces</span></button>
+    </div>
+    <div class="wrow">
+      <div class="wsound">
+        <button class="wbtn" id="wMute" type="button" aria-pressed="false" aria-label="Mute clicks" title="Tooth clicks (M)"><svg class="on"><use href="#i-speaker-high"/></svg><svg class="off"><use href="#i-speaker-slash"/></svg></button>
+        <input type="range" id="wVol" min="0" max="1" step=".05" aria-label="Click volume">
+      </div>
+      <div class="wseg" id="wLayers" role="group" aria-label="Layers on screen" title="How many layers on screen at once">
+        <span class="wlbl">Layers</span><button type="button" data-layers="3">3</button><button type="button" data-layers="4">4</button><button type="button" data-layers="5">5</button><button type="button" data-layers="6">6</button>
+      </div>
+      <button class="wtog" id="wSleep" type="button" aria-pressed="false" title="Fade to black after a while"><svg><use href="#i-moon"/></svg><span>Sleep off</span></button>
+      <div class="wcode"><label for="wCode">Code</label><input type="text" id="wCode" maxlength="6" spellcheck="false" autocomplete="off" title="This session's code: type another and press Enter to replay it"><button class="wbtn" id="wCopy" type="button" aria-label="Copy code" title="Copy code"><svg><use href="#i-copy"/></svg></button></div>
+      <button class="wtog" id="wKeep" type="button" title="Keep what's on screen as your drawing (K)"><svg><use href="#i-bookmark-simple"/></svg><span>Keep</span></button>
+      <button class="wbtn" id="wPause" type="button" aria-pressed="false" aria-label="Pause" title="Pause (Space)"><svg><use href="#i-pause"/></svg></button>
+      <button class="wbtn" id="wNext" type="button" aria-label="Next layer" title="Finish this layer now (→)"><svg><use href="#i-skip-forward"/></svg></button>
+      <button class="wbtn" id="wExit" type="button" aria-label="Leave" title="Leave (Esc)"><svg><use href="#i-x"/></svg></button>
+    </div>
+  </div>
+  <div class="wtoast" id="wToast" role="status" aria-live="polite"></div>
+  <p class="whint">Drag in circles to roll it yourself · <kbd>Space</kbd> pause · <kbd>→</kbd> next layer · <kbd>R</kbd> rainbow · <kbd>P</kbd> pieces · <kbd>K</kbd> keep · <kbd>M</kbd> mute · <kbd>Esc</kbd> leave</p>
+</div>
 <header class="top">
   <div class="brand">
     <svg class="logo" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 4c6 0 9 5 7 10s-9 6-12 2-1-10 5-10 10 4 9 11-8 12-15 10S4 23 8 15 20 4 20 4z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
@@ -18,6 +50,7 @@
     <button class="ico" id="redo" type="button" title="Redo (⇧⌘Z)" aria-label="Redo"><svg><use href="#i-arrow-clockwise"/></svg></button>
   </div>
   <div class="export menuwrap">
+    <button class="btn" id="watchBtn" type="button" title="Just watch: Speira draws by itself, full screen (W)"><svg><use href="#i-television-simple"/></svg>Watch</button>
     <button class="btn" id="exportBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="exportPanel" title="Export (⌘E) · ⌘S saves again with your last settings"><svg><use href="#i-download-simple"/></svg>Export</button>
     <div class="exportpanel" id="exportPanel" role="dialog" aria-label="Export" hidden>
       <div class="seg" role="radiogroup" aria-label="Format">
@@ -141,5 +174,6 @@
 <script src="js/pens.js"></script>
 <script src="js/paper.js"></script>
 <script src="js/app.js"></script>
+<script src="js/watch.js"></script>
 </body>
 </html>
