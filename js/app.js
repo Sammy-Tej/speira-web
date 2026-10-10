@@ -814,6 +814,15 @@ addEventListener('keydown', e => {
   else if (e.key === 'h') showPieces(!P.stencil);
   else if (e.key === 'g') showGhost(!P.ghost);
   else if (e.key === 'w' && window.SpeiraWatch) SpeiraWatch.enter();
+  else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.target.matches('input, select, textarea, .grip')) {
+    // roll the wheel with the keyboard: one tooth per press (hold to keep rolling), Shift for ten
+    e.preventDefault(); stop();
+    if (autoHidden) showPieces(true);
+    if (!e.repeat) remember();
+    const G = tr(cur).G;
+    advance((e.key === 'ArrowRight' ? 1 : -1) * (e.shiftKey ? 10 : 1) * TAU / G.T);
+    syncPlay(); readout(); save();
+  }
   else if (e.key === '[') change(s => s.hole = Math.max(0, s.hole - 1));
   else if (e.key === ']') change(s => s.hole = Math.min(holesFor(s.wheel, s.pitch).length - 1, s.hole + 1));
   else if (e.key === ',') change(s => s.shift = (s.shift - 1 + 1000) % 1000);
