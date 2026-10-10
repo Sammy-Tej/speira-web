@@ -755,6 +755,32 @@ function moveLayer(L, by) {
   if (i === j) return;
   remember(); layers.splice(i, 1); layers.splice(j, 0, L); dirty();
 }
+// ---------- recipe card: a layer's exact settings as text you can share and paste back ----------
+// First line is for people, second line is a code Speira reads back (base64url JSON, versioned).
+const RECIPE_KEYS = ['ring', 'mode', 'wheel', 'hole', 'shift', 'pitch', 'pen', 'color', 'width', 'opacity', 'rainbow'];
+function recipeOf(L) {
+  const r = RINGS[L.ring], code = btoa(JSON.stringify(RECIPE_KEYS.map(k => L[k]))).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+  return `Speira recipe: ${r.inner}/${r.outer} ring, wheel ${L.mode} · ${L.wheel}-tooth wheel · hole ${L.hole + 1} · start shift ${L.shift} · kit size ${+(+L.pitch).toFixed(2)} · ` +
+    `${penName(L)} ${L.color}${L.rainbow ? ' rainbow' : ''}, ${(+L.width).toFixed(1)} thick, ${Math.round(L.opacity * 100)}%\nspeira:1:${code}`;
+}
+function readRecipe(text) {
+  const m = /speira:1:([A-Za-z0-9_-]+)/.exec(text || ''); if (!m) return null;
+  try {
+    const v = JSON.parse(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (!Array.isArray(v) || v.length !== RECIPE_KEYS.length) return null;
+    const o = Object.fromEntries(RECIPE_KEYS.map((k, i) => [k, v[i]]));
+    const ok = RINGS[o.ring] && ['inside', 'outside'].includes(o.mode) && WHEELS.includes(o.wheel) && Number.isInteger(o.hole) && o.hole >= 0 &&
+      Number.isFinite(o.shift) && o.pitch > 0 && o.pitch < 200 && PEN_STYLES[o.pen] && /^#[0-9a-f]{6}$/i.test(o.color) && o.width > 0 && o.opacity > 0 && o.opacity <= 1;
+    if (!ok) return null;
+    o.hole = Math.min(o.hole, holesFor(o.wheel, o.pitch).length - 1); o.rainbow = !!o.rainbow;
+    return o;
+  } catch { return null; }
+}
+function copyRecipe(L) {
+  const txt = recipeOf(L);
+  (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast('Recipe copied: paste it anywhere, or back into Speira with ⌘V'), () => toast('Could not reach the clipboard', true));
+}
+function useRecipe(o, from = 'Recipe') { change(s => Object.assign(s, o)); toast(`${from} loaded: your next pass uses it`); }
 function editorFor(L, li) {
   const ed = document.createElement('div'); ed.className = 'layered';
   ed.innerHTML = `<div class="chips pens4 small">${Object.keys(PEN_STYLES).map(k => `<button type="button" class="chip" data-pen="${k}" aria-pressed="${k === (L.pen || 'ballpoint')}">${PEN_STYLES[k].label}</button>`).join('')}</div>
@@ -763,7 +789,7 @@ function editorFor(L, li) {
     <label class="row"><span>Thickness</span><input type="range" min=".4" max="12" step=".1" value="${L.width}" data-k="width"><output>${(+L.width).toFixed(1)}</output></label>
     <label class="row"><span>Opacity</span><input type="range" min=".1" max="1" step=".05" value="${L.opacity}" data-k="opacity"><output>${Math.round(L.opacity * 100)}%</output></label>
     <label class="check"><input type="checkbox" data-k="rainbow" ${L.rainbow ? 'checked' : ''}> Rainbow ink</label>
-    <div class="btnrow"><button type="button" class="btn sm" data-done>Done</button><small class="draghint">Drag ⋮⋮ to change the order</small></div>`;
+    <div class="btnrow"><button type="button" class="btn sm" data-done>Done</button><button type="button" class="btn sm" data-copy title="Copy this pass's pieces and pen as a recipe"><svg><use href="#i-copy"/></svg>Copy recipe</button><button type="button" class="btn sm" data-reuse title="Set up the next pass exactly like this one">Draw it again</button><small class="draghint">Drag ⋮⋮ to change the order</small></div>`;
   ed.addEventListener('change', () => { editArmed = false; });
   ed.querySelectorAll('[data-pen]').forEach(b => b.addEventListener('click', () => {
     editArmed = false; editLayer(L, li, l => { l.pen = b.dataset.pen; l.width = PEN_STYLES[l.pen].w; });
@@ -782,6 +808,8 @@ function editorFor(L, li) {
     if (k === 'rainbow') editArmed = false;
   }));
   ed.querySelector('[data-done]').addEventListener('click', () => { editId = null; inkDirty = true; renderLayers(); });
+  ed.querySelector('[data-copy]').addEventListener('click', () => copyRecipe(L));
+  ed.querySelector('[data-reuse]').addEventListener('click', () => { const o = Object.fromEntries(RECIPE_KEYS.map(k => [k, L[k]])); editId = null; inkDirty = true; useRecipe(o, 'That pass'); });
   return ed;
 }
 // drag a row by its handle. The pointer is followed at window level: moving the row in the DOM
@@ -842,6 +870,17 @@ function renderLayers() {
 let toastT;
 function toast(msg, bad) { const t = $('#toast'); t.textContent = msg; t.classList.toggle('bad', !!bad); t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600); }
 
+// recipes: copy the current settings, paste one with the button or ⌘V anywhere outside a text field
+$('#copyRecipe').addEventListener('click', () => copyRecipe(S));
+$('#pasteRecipe').addEventListener('click', () => {
+  if (!navigator.clipboard || !navigator.clipboard.readText) { toast('Press ⌘V to paste a recipe'); return; }
+  navigator.clipboard.readText().then(t => { const o = readRecipe(t); o ? useRecipe(o) : toast('No Speira recipe on the clipboard', true); }, () => toast('Press ⌘V to paste a recipe'));
+});
+addEventListener('paste', e => {
+  if (e.target instanceof Element && e.target.matches('input, textarea, [contenteditable]')) return;
+  const o = readRecipe(e.clipboardData && e.clipboardData.getData('text')); if (!o) return;
+  e.preventDefault(); useRecipe(o);
+});
 // keyboard
 addEventListener('keydown', e => {
   if (!(e.target instanceof Element) || e.target.matches('input[type=number], input[type=text]')) return;
