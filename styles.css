@@ -186,6 +186,11 @@ body.dragging-layer, body.dragging-layer * { cursor: grabbing !important; user-s
 .fold > summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 13px 14px; cursor: pointer; border-radius: 14px; }
 .fold > summary::-webkit-details-marker { display: none; }
 .fold > summary h2 { flex: 1; }
+.warnmark { width: 16px; height: 16px; color: #f5b83d; }
+.inkwarn { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(245, 184, 61, .45); background: rgba(245, 184, 61, .08); color: var(--text); font-size: 12px; line-height: 1.35; }
+.inkwarn > svg { width: 16px; height: 16px; color: #f5b83d; }
+.inkwarn span { flex: 1; }
+.inkwarn .sw { width: 26px; flex: none; }
 .fold > summary:hover h2 { color: var(--text); }
 .fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .fold .chev { color: var(--faint); transition: transform .2s; }

@@ -304,6 +304,9 @@ function advance(d) {
 }
 function play() {
   if (autoHidden) showPieces(true);
+  // once per ink/paper pairing, say so when drawing starts with ink that won't show
+  const key = [S.color, S.pen, S.opacity, P.bg].join();
+  if (inkProblem() && inkWarned !== key) { inkWarned = key; toast('Heads up: this ink barely shows on this paper (see Pen)', true); }
   if (penUp) setPen(false);
   if (cur.b - cur.a >= tr(cur).G.total) newLayerFromCurrent();
   remember();
@@ -540,6 +543,7 @@ function swatches(box, list, get, set) {
   box._sync = () => [...box.children].forEach(b => b.setAttribute('aria-pressed', b.dataset.v.toLowerCase() === get().toLowerCase()));
 }
 swatches($('#pens'), PENS, () => S.color, c => change(s => s.color = c, true));
+$('#inkFix').addEventListener('click', e => change(s => s.color = e.currentTarget.dataset.v, true));
 swatches($('#papers'), PAPERS, () => P.bg, c => { P.bg = c; syncControls(); save(); });
 (() => {
   const box = $('#tints'), names = { classic: 'Classic', mint: 'Mint', violet: 'Violet', smoke: 'Smoke', clear: 'Clear' };
@@ -677,6 +681,27 @@ clearBtn.addEventListener('click', () => {
   remember(); stop(); layers = []; cur = newLayer(); dirty();
 });
 
+// ---------- invisible ink: warn when the pen will barely show on the paper ----------
+// Compares the ink as it actually lands (the pen's own transparency and the opacity slider included)
+// with the paper, using the WCAG contrast ratio. Rainbow ink varies along the line, so it is left alone.
+const PEN_ALPHA = { highlighter: .3, felt: .5, pencil: .6, glitter: .82 };
+const relLum = hex => hexRgb(hex).map(v => { v /= 255; return v <= .03928 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }).reduce((s, v, i) => s + v * [.2126, .7152, .0722][i], 0);
+const contrast = (a, b) => { const [x, y] = [relLum(a), relLum(b)].sort((p, q) => q - p); return (x + .05) / (y + .05); };
+const showsAs = (col, pen, op) => mixHex(P.bg, col, (PEN_ALPHA[pen] ?? 1) * op);
+function inkProblem() {
+  if (S.rainbow) return null;
+  if (contrast(showsAs(S.color, S.pen, S.opacity), P.bg) >= 1.6) return null;
+  const best = PENS.reduce((b, c) => contrast(showsAs(c, S.pen, S.opacity), P.bg) > contrast(showsAs(b, S.pen, S.opacity), P.bg) ? c : b);
+  const name = (PAPERS.find(([c]) => c.toLowerCase() === P.bg.toLowerCase()) || [, 'this'])[1].toLowerCase();
+  return { text: `This ink will barely show on ${name} paper${S.opacity < .5 || PEN_ALPHA[S.pen] ? ' at this pen and opacity' : ''}. Try:`, best };
+}
+let inkWarned = '';
+function syncInkWarning() {
+  const p = inkProblem();
+  $$('[data-inkwarn]').forEach(el => el.hidden = !p);
+  $('#inkWarn').hidden = !p;
+  if (p) { $('#inkWarnText').textContent = p.text; const f = $('#inkFix'); f.style.setProperty('--c', p.best); f.title = 'Use this ink'; f.setAttribute('aria-label', 'Use this ink'); f.dataset.v = p.best; }
+}
 function syncControls() {
   ['#rings', '#modes', '#wheels', '#pens', '#papers', '#tints', '#penStyles'].forEach(s => $(s)._sync());
   $('#rainbow').checked = !!S.rainbow;
@@ -698,7 +723,7 @@ function syncControls() {
   $('#sound').value = P.sound; $('#soundOut').textContent = P.sound ? Math.round(P.sound * 100) + '%' : 'Off';
   $('#mute').setAttribute('aria-pressed', P.sound === 0); $('#mute').title = P.sound ? 'Mute clicks' : 'Unmute clicks'; $('#transparent').checked = P.transparent;
   document.documentElement.style.setProperty('--pen', S.color);
-  readout(); syncPlay();
+  syncInkWarning(); readout(); syncPlay();
 }
 function syncPlay() {
   const b = $('#play'); b.setAttribute('aria-pressed', playing);

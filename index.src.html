@@ -134,10 +134,11 @@
     </details>
 
     <details class="card fold" data-fold="pen">
-      <summary><h2>Pen</h2><svg class="chev" aria-hidden="true"><use href="#i-caret-down"/></svg></summary>
+      <summary><h2>Pen</h2><svg class="warnmark" data-inkwarn hidden aria-label="This ink barely shows on this paper"><use href="#i-warning-circle"/></svg><svg class="chev" aria-hidden="true"><use href="#i-caret-down"/></svg></summary>
       <div class="foldbody">
       <div class="chips pens4" id="penStyles"></div>
       <div class="swatches" id="pens"></div>
+      <div class="inkwarn" id="inkWarn" role="status" hidden><svg aria-hidden="true"><use href="#i-warning-circle"/></svg><span id="inkWarnText"></span><button class="sw" id="inkFix" type="button"></button></div>
       <label class="check"><input type="checkbox" id="rainbow"> Rainbow ink <small>colour shifts along the line, starting from your pen colour</small></label>
       <label class="row"><span>Custom colour</span><input type="color" id="penColor"><span></span></label>
       <label class="row"><span>Thickness</span><input type="range" id="width" min=".4" max="10" step=".1"><output id="widthOut"></output></label>
@@ -146,7 +147,7 @@
     </details>
 
     <details class="card fold" data-fold="paper">
-      <summary><h2>Paper</h2><svg class="chev" aria-hidden="true"><use href="#i-caret-down"/></svg></summary>
+      <summary><h2>Paper</h2><svg class="warnmark" data-inkwarn hidden aria-label="The pen colour barely shows on this paper"><use href="#i-warning-circle"/></svg><svg class="chev" aria-hidden="true"><use href="#i-caret-down"/></svg></summary>
       <div class="foldbody">
       <div class="field"><span class="lbl">Size</span><select id="paperPreset" class="wide"></select></div>
       <div class="custompaper" id="customPaper" hidden>
