@@ -3,7 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Spiro Lab</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#17181c">
+<title>Speira</title>
+<link rel="icon" href="brand/web/favicon.ico" sizes="48x48">
+<link rel="icon" href="brand/web/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="brand/web/apple-touch-icon.png">
+<script>
+  // pick the theme before anything paints (no flash): your last choice, else your Mac's or iPad's setting
+  (() => { let t = null; try { t = JSON.parse(localStorage.getItem('spiro-lab-v1') || 'null')?.P?.theme; } catch {}
+    document.documentElement.dataset.theme = t || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); })();
+</script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -42,21 +53,26 @@
 </div>
 <header class="top">
   <div class="brand">
-    <svg class="logo" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 4c6 0 9 5 7 10s-9 6-12 2-1-10 5-10 10 4 9 11-8 12-15 10S4 23 8 15 20 4 20 4z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
-    <span>Spiro Lab</span><em>working title</em>
+    <img class="logo" src="brand/web/icon-192.png" alt="" width="30" height="30">
+    <span class="name">Speira</span>
   </div>
   <div class="hist">
     <button class="ico" id="undo" type="button" title="Undo (⌘Z)" aria-label="Undo"><svg><use href="#i-arrow-counter-clockwise"/></svg></button>
     <button class="ico" id="redo" type="button" title="Redo (⇧⌘Z)" aria-label="Redo"><svg><use href="#i-arrow-clockwise"/></svg></button>
   </div>
   <div class="export menuwrap">
+    <div class="themesw" role="group" aria-label="Theme">
+      <button type="button" data-theme-pick="light" aria-label="Light theme" title="Light"><svg><use href="#i-sun"/></svg></button>
+      <button type="button" data-theme-pick="dark" aria-label="Dark theme" title="Dark"><svg><use href="#i-moon"/></svg></button>
+    </div>
     <button class="btn" id="watchBtn" type="button" title="Just watch: Speira draws by itself, full screen (W)"><svg><use href="#i-television-simple"/></svg>Watch</button>
-    <button class="btn" id="exportBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="exportPanel" title="Export (⌘E) · ⌘S saves again with your last settings"><svg><use href="#i-download-simple"/></svg>Export</button>
+    <button class="btn primary" id="exportBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="exportPanel" title="Export (⌘E) · ⌘S saves again with your last settings"><svg><use href="#i-download-simple"/></svg>Export</button>
     <div class="exportpanel" id="exportPanel" role="dialog" aria-label="Export" hidden>
       <div class="seg" role="radiogroup" aria-label="Format">
         <button type="button" role="radio" data-fmt="png">PNG</button>
         <button type="button" role="radio" data-fmt="jpg">JPG</button>
         <button type="button" role="radio" data-fmt="svg">SVG</button>
+        <button type="button" role="radio" data-fmt="video">Video</button>
       </div>
       <p class="fmtnote" id="fmtNote"></p>
       <label class="opt field" data-for="png jpg"><span class="lbl">Size</span><select id="pngSize" class="wide" aria-label="Image size"></select></label>
@@ -68,6 +84,9 @@
           <small>One clean line per layer in its pen colour, no effects. Best for editing in design apps, pen plotters and cutting machines (Cricut, Silhouette). Smallest file, opens fastest.</small></button>
       </div>
       <label class="opt check" data-for="png svg"><input type="checkbox" id="transparent"> Transparent background</label>
+      <label class="opt row" data-for="video"><span>Length</span><select id="vidLen" aria-label="Video length"><option value="6">6 seconds</option><option value="12">12 seconds</option><option value="20">20 seconds</option><option value="30">30 seconds</option></select><span></span></label>
+      <label class="opt row" data-for="video"><span>Size</span><select id="vidSize" aria-label="Video size"><option value="720">720p</option><option value="1080">1080p</option><option value="2160">4K</option></select><span></span></label>
+      <label class="opt check" data-for="video"><input type="checkbox" id="vidPieces"> Show the pieces turning</label>
       <button class="btn primary" id="doExport" type="button"><svg><use href="#i-download-simple"/></svg><span>Save</span></button>
     </div>
   </div>
@@ -78,8 +97,8 @@
   <section class="stage" aria-label="Paper">
     <canvas id="paper" aria-label="Drawing paper. Drag to roll the wheel."></canvas>
     <div class="stagebar">
-      <button class="stagebtn" id="ghostToggle" type="button" aria-pressed="true" title="Faint preview of the whole pattern before you draw it (G)"><svg><use href="#i-circle-dashed"/></svg><span>Preview on</span></button>
-      <button class="stagebtn" id="pieceToggle" type="button" aria-pressed="true" title="Show or hide the pieces (H)"><svg><use href="#i-eye"/></svg><span>Pieces shown</span></button>
+      <button class="stagebtn round" id="ghostToggle" type="button" aria-pressed="true" aria-label="Preview on" title="Preview: a faint outline of the whole pattern before you draw it (G)"><svg><use href="#i-circle-dashed"/></svg></button>
+      <button class="stagebtn round" id="pieceToggle" type="button" aria-pressed="true" aria-label="Pieces shown" title="Pieces: show or hide the ring and wheel (H)"><svg><use href="#i-eye"/></svg></button>
     </div>
     <div class="zoombar" role="group" aria-label="Zoom">
       <button class="zbtn" id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out (⌘−)"><svg><use href="#i-magnifying-glass-minus"/></svg></button>
@@ -87,15 +106,16 @@
       <button class="zbtn" id="zoomIn" type="button" aria-label="Zoom in" title="Zoom in (⌘+)"><svg><use href="#i-magnifying-glass-plus"/></svg></button>
       <button class="zbtn" id="zoomFull" type="button" aria-label="Full screen" title="Full screen (⌃⌘F)"><svg><use href="#i-corners-out"/></svg></button>
     </div>
-    <p class="hint">Drag on the paper to roll the wheel · click a hole to move the pen · <kbd>←</kbd><kbd>→</kbd> roll a tooth · <kbd>L</kbd> lift the pen · <kbd>Space</kbd> draw · <kbd>Enter</kbd> new layer · pinch or <kbd>⌘</kbd><kbd>+</kbd> zoom · two-finger scroll pans</p>
+    <p class="hint" data-touch>Drag on the paper to roll the wheel · tap a hole to move the pen · pinch to zoom · two fingers to pan</p>
+    <p class="hint" data-desk>Drag on the paper to roll the wheel · click a hole to move the pen · <kbd>←</kbd><kbd>→</kbd> roll a tooth · <kbd>L</kbd> lift the pen · <kbd>Space</kbd> draw · <kbd>Enter</kbd> new layer · pinch or <kbd>⌘</kbd><kbd>+</kbd> zoom · two-finger scroll pans</p>
     <div id="toast" role="status" aria-live="polite"></div>
+    <div class="recbar" id="recBar" hidden><span>Recording video</span><div class="recprog"><div id="recProg"></div></div><button class="btn sm" id="recCancel" type="button">Cancel</button></div>
   </section>
 
   <aside class="panel">
     <section class="card draw">
       <div class="drawrow">
         <button class="btn primary" id="play" type="button"><svg><use href="#i-play"/></svg><span>Draw</span></button>
-        <button class="btn" id="finish" type="button" title="Complete the pattern (F)"><svg><use href="#i-check-circle"/></svg>Finish</button>
         <button class="btn" id="newLayer" type="button" title="Keep this pass and start a new one (Enter)"><svg><use href="#i-plus"/></svg>New layer</button>
       </div>
       <div class="prog"><div id="progress"></div></div>

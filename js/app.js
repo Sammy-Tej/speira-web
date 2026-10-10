@@ -8,7 +8,7 @@ const PAPERS = [['#ffffff', 'White'], ['#f6f1e7', 'Cream'], ['#e8d8b9', 'Kraft']
 
 // ---------- state ----------
 const S = { ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0, pen: 'ballpoint', rainbow: false };
-const P = { bg: '#ffffff', stencil: true, autoHide: true, ghost: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic', paper: { ...DEFAULT_PAPER }, svgMode: 'effects', exportFmt: 'png', jpgQ: .9, folds: { pieces: true, pen: false, paper: false, layers: false } };
+const P = { bg: '#ffffff', stencil: true, autoHide: true, ghost: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic', paper: { ...DEFAULT_PAPER }, svgMode: 'effects', exportFmt: 'png', jpgQ: .9, vidLen: 12, vidSize: 1080, vidPieces: false, folds: { pieces: true, pen: false, paper: false, layers: false } };
 const PW = () => paperWorld(P.paper)[0], PH = () => paperWorld(P.paper)[1];
 let layers = [], cur = null, playing = false, uid = 1;
 let past = [], future = [];
@@ -358,7 +358,13 @@ let drag = null;
 const touches = new Map();
 let pinch = null, pinchHold = false;
 const twoFinger = () => { const [a, b] = [...touches.values()]; return { mx: (a[0] + b[0]) / 2, my: (a[1] + b[1]) / 2, d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1 }; };
+// Apple Pencil: while the Pencil is on or near the screen, a resting palm's touches are ignored
+let penUntil = 0;
+const penNear = e => { if (e.pointerType === 'pen') penUntil = performance.now() + 900; };
+cv.addEventListener('pointermove', penNear);
 cv.addEventListener('pointerdown', e => {
+  penNear(e);
+  if (e.pointerType === 'touch' && performance.now() < penUntil) return;
   if (e.pointerType === 'touch') {
     touches.set(e.pointerId, [e.clientX, e.clientY]);
     if (touches.size >= 2) {
@@ -373,7 +379,7 @@ cv.addEventListener('pointerdown', e => {
   if (e.button === 1) { e.preventDefault(); drag = { kind: 'pan', x: e.clientX, y: e.clientY }; cv.classList.add('panning'); return; }
   if (moveMode || e.altKey) { drag = { kind: 'move' }; return; }
   if (P.stencil) {
-    const G = geom(cur), w = wheelAt(G, cur, cur.pos), tol = Math.max(G.p * .32, 10 * view.dpr / view.s);
+    const G = geom(cur), w = wheelAt(G, cur, cur.pos), tol = Math.max(G.p * .32, (e.pointerType === 'touch' ? 22 : 10) * view.dpr / view.s);   // fingers get a bigger target
     const hit = G.holes.findIndex(h => Math.hypot(w.wx + h.d * Math.cos(w.spin + h.a) - x, w.wy + h.d * Math.sin(w.spin + h.a) - y) < tol);
     if (hit >= 0 && hit !== G.hole) { change(s => s.hole = hit); return; }
   }
@@ -520,6 +526,80 @@ function exportRaster(fmt) {
   }, fmt === 'jpg' ? 'image/jpeg' : 'image/png', P.jpgQ);
 }
 
+// ---------- video: the drawing making itself ----------
+// Every visible layer is replayed in order at an even pen speed, onto a canvas that MediaRecorder films in real
+// time (MP4 in Safari, WebM where MP4 recording isn't offered). A short pause at the start and a hold at the end.
+let rec = null;
+function exportVideo() {
+  if (rec) return;
+  const list = visibleInk();
+  if (!list.length) { toast('Draw something first, then record it', true); return; }
+  const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+  const mime = window.MediaRecorder && types.find(t => MediaRecorder.isTypeSupported(t));
+  const probe = document.createElement('canvas');
+  if (!mime || !probe.captureStream) { toast('This browser cannot record video. Try Safari or Chrome.', true); return; }
+  stop();
+  // size: the long side of the paper becomes 720 / 1080 / 2160 pixels (even numbers, as video needs)
+  const long = P.vidSize, k = long / Math.max(PW(), PH()), w = Math.round(PW() * k / 2) * 2, h = Math.round(PH() * k / 2) * 2;
+  const out = probe; out.width = w; out.height = h;
+  const acc = document.createElement('canvas'); acc.width = w; acc.height = h;
+  const oc = out.getContext('2d'), ac2 = acc.getContext('2d'), s = w / PW();
+  const v = { s, ox: 0, oy: 0, dpr: Math.max(1, Math.min(w, h) / 700) }, ring = ringCache();
+  ac2.fillStyle = P.bg; ac2.fillRect(0, 0, w, h);
+  const items = list.map(L => { const plan = planOf(L); resetPlanCursors(plan); return { L, plan, n: plan.xy.length / 2 }; });
+  const total = items.reduce((t, it) => t + it.n, 0), LEAD = .4, HOLD = 1.6, drawT = Math.max(1, P.vidLen - LEAD - HOLD);
+  let done = 0, idx = 0, drawn = 0;   // points drawn so far: overall, which layer, and within it
+  function step(upTo) {   // draw until `upTo` points overall have been drawn
+    while (idx < items.length && done < upTo) {
+      const it = items[idx], target = Math.min(it.n - 1, drawn + (upTo - done));
+      ac2.save(); ac2.setTransform(s, 0, 0, s, 0, 0); drawPlanRange(ac2, it.plan, it.L.opacity, drawn, target); ac2.restore();
+      done += target - drawn; drawn = target;
+      if (drawn >= it.n - 1) { ac2.save(); ac2.setTransform(s, 0, 0, s, 0, 0); drawPlanStars(ac2, it.plan, it.L.opacity); ac2.restore(); done += 1; idx++; drawn = 0; }
+    }
+  }
+  function paint() {
+    oc.setTransform(1, 0, 0, 1, 0, 0); oc.drawImage(acc, 0, 0);
+    oc.setTransform(s, 0, 0, s, 0, 0); drawTexture(oc, P.paper.texture, PW(), PH());
+    if (P.vidPieces && idx < items.length) {
+      const it = items[idx], L = it.L, pos = L.a + (L.b - L.a) * (drawn / Math.max(1, it.n - 1));
+      drawStencil(oc, { ...L, pos }, v, ring, false);
+    }
+  }
+  paint();
+  const stream = out.captureStream(30), chunks = [];
+  const mr = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: long >= 2160 ? 40e6 : long >= 1080 ? 14e6 : 7e6 });
+  mr.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  let cancelled = false, raf = 0;
+  const bar = $('#recBar'), prog = $('#recProg');
+  const finish = () => {
+    clearTimeout(raf); bar.hidden = true; rec = null; items.forEach(it => resetPlanCursors(it.plan));
+    stream.getTracks().forEach(t => t.stop());
+  };
+  mr.onstop = () => {
+    finish();
+    if (cancelled) { toast('Recording cancelled'); return; }
+    const ext = mime.startsWith('video/mp4') ? 'mp4' : 'webm';
+    download(new Blob(chunks, { type: mime.split(';')[0] }), `speira-${stamp()}-${w}x${h}.${ext}`);
+    toast(`Video saved (${w} × ${h}, ${P.vidLen} s, ${ext.toUpperCase()})`);
+  };
+  rec = { cancel: () => { cancelled = true; if (mr.state !== 'inactive') mr.stop(); } };
+  bar.hidden = false; prog.style.width = '0';
+  mr.start(250);
+  const t0 = performance.now();
+  const tick = now => {
+    const t = (now - t0) / 1000;
+    step(Math.floor(total * Math.min(1, Math.max(0, (t - LEAD) / drawT))));
+    if (t >= LEAD + drawT) step(total + items.length);
+    paint(); prog.style.width = Math.min(100, t / P.vidLen * 100) + '%';
+    if (t >= P.vidLen) { if (mr.state !== 'inactive') mr.stop(); return; }
+    if (document.hidden && !warned) { warned = true; toast('Recording slows down while this tab is hidden: keep it in front', true); }
+    raf = setTimeout(() => tick(performance.now()), 1000 / 30);
+  };
+  // a timer rather than animation frames: frames stop entirely in a hidden tab, timers only slow down
+  let warned = false;
+  raf = setTimeout(() => tick(performance.now()), 0);
+}
+
 // ---------- UI wiring ----------
 function chips(box, items, get, set, label = v => v, keepPos = false) {
   box.innerHTML = '';
@@ -569,7 +649,6 @@ bind('#autoShift', 'input', e => { S.autoShift = clampN(Math.round(+e.target.val
 const speedFromSlider = v => +(0.05 * Math.pow(60, v / 100)).toFixed(3), sliderFromSpeed = s => Math.round(100 * Math.log(s / .05) / Math.log(60));
 bind('#speed', 'input', e => { P.speed = speedFromSlider(+e.target.value); $('#speedOut').textContent = P.speed.toFixed(2) + ' laps/s'; save(); });
 bind('#play', 'click', () => playing ? stop() : play());
-bind('#finish', 'click', finish);
 bind('#newLayer', 'click', newLayerFromCurrent);
 bind('#penLift', 'change', e => { stop(); setPen(e.target.checked); });
 bind('#undo', 'click', undo); bind('#redo', 'click', redo);
@@ -590,7 +669,8 @@ const exportBtn = $('#exportBtn'), panel = $('#exportPanel');
 const FMT_NOTES = {
   png: 'Sharp, lossless image. Best for sharing online and printing.',
   jpg: 'Smaller image with light compression. Good for messages and photo apps. JPG has no transparency, so the paper colour is always included.',
-  svg: 'Vector file: stays sharp at any size and can be edited line by line.'
+  svg: 'Vector file: stays sharp at any size and can be edited line by line.',
+  video: 'Your drawing making itself, every layer in the order you drew it. It records in real time, so keep this tab in front until it finishes.'
 };
 function syncExport() {
   const f = P.exportFmt;
@@ -599,9 +679,11 @@ function syncExport() {
   panel.querySelectorAll('[data-svg]').forEach(b => b.setAttribute('aria-checked', b.dataset.svg === P.svgMode));
   $('#fmtNote').textContent = FMT_NOTES[f];
   $('#jpgQ').value = P.jpgQ; $('#jpgQOut').textContent = Math.round(P.jpgQ * 100) + '%';
-  $('#doExport span').textContent = 'Save ' + f.toUpperCase();
+  $('#doExport span').textContent = f === 'video' ? 'Record video' : 'Save ' + f.toUpperCase();
+  $('#vidLen').value = P.vidLen; $('#vidSize').value = P.vidSize; $('#vidPieces').checked = P.vidPieces;
+  fillRanges(panel);
 }
-function exportNow() { if (P.exportFmt === 'svg') exportSVG(P.svgMode); else exportRaster(P.exportFmt); }
+function exportNow() { if (P.exportFmt === 'svg') exportSVG(P.svgMode); else if (P.exportFmt === 'video') exportVideo(); else exportRaster(P.exportFmt); }
 function openExport(open) {
   panel.hidden = !open; exportBtn.setAttribute('aria-expanded', String(open));
   if (open) { syncExport(); panel.querySelector(`[data-fmt="${P.exportFmt}"]`).focus(); }
@@ -610,6 +692,10 @@ exportBtn.addEventListener('click', () => openExport(panel.hidden));
 panel.querySelectorAll('[data-fmt]').forEach(b => b.addEventListener('click', () => { P.exportFmt = b.dataset.fmt; syncExport(); save(); }));
 panel.querySelectorAll('[data-svg]').forEach(b => b.addEventListener('click', () => { P.svgMode = b.dataset.svg; syncExport(); save(); }));
 bind('#jpgQ', 'input', e => { P.jpgQ = +e.target.value; syncExport(); save(); });
+bind('#vidLen', 'change', e => { P.vidLen = +e.target.value; save(); });
+bind('#vidSize', 'change', e => { P.vidSize = +e.target.value; save(); });
+bind('#vidPieces', 'change', e => { P.vidPieces = e.target.checked; save(); });
+bind('#recCancel', 'click', () => { if (rec) rec.cancel(); });
 bind('#doExport', 'click', () => { exportNow(); openExport(false); });
 // close when clicking anywhere else (capture phase, so the drawing canvas can't swallow it) or pressing Esc
 document.addEventListener('pointerdown', e => { if (!panel.hidden && !panel.contains(e.target) && !exportBtn.contains(e.target)) openExport(false); }, true);
@@ -702,6 +788,18 @@ function syncInkWarning() {
   $('#inkWarn').hidden = !p;
   if (p) { $('#inkWarnText').textContent = p.text; const f = $('#inkFix'); f.style.setProperty('--c', p.best); f.title = 'Use this ink'; f.setAttribute('aria-label', 'Use this ink'); f.dataset.v = p.best; }
 }
+// ---------- theme: sun / moon in the header; remembered with your other settings ----------
+function syncTheme() {
+  const t = P.theme || document.documentElement.dataset.theme || 'light';
+  document.documentElement.dataset.theme = t;
+  $$('[data-theme-pick]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.themePick === t)));
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = getComputedStyle(document.documentElement).getPropertyValue('--desk-2').trim();
+}
+$$('[data-theme-pick]').forEach(b => b.addEventListener('click', () => { P.theme = b.dataset.themePick; syncTheme(); save(); }));
+// sliders show their filled part via --fill (Safari and Chrome can't colour the left of a range track on their own)
+const fillOf = el => { const lo = +el.min || 0, hi = el.max === '' ? 100 : +el.max; el.style.setProperty('--fill', ((+el.value - lo) / (hi - lo || 1) * 100) + '%'); };
+function fillRanges(root = document) { root.querySelectorAll('input[type=range]').forEach(fillOf); }
+document.addEventListener('input', e => { if (e.target.matches && e.target.matches('input[type=range]')) fillOf(e.target); }, true);
 function syncControls() {
   ['#rings', '#modes', '#wheels', '#pens', '#papers', '#tints', '#penStyles'].forEach(s => $(s)._sync());
   $('#rainbow').checked = !!S.rainbow;
@@ -715,8 +813,9 @@ function syncControls() {
   $('#autoShift').value = S.autoShift;
   $('#speed').value = sliderFromSpeed(P.speed); $('#speedOut').textContent = P.speed.toFixed(2) + ' laps/s';
   $('#autoHide').checked = P.autoHide;
-  const pt = $('#pieceToggle'); pt.setAttribute('aria-pressed', P.stencil); pt.querySelector('use').setAttribute('href', P.stencil ? '#i-eye' : '#i-eye-slash'); pt.querySelector('span').textContent = P.stencil ? 'Pieces shown' : 'Pieces hidden';
-  const gt = $('#ghostToggle'); gt.setAttribute('aria-pressed', P.ghost); gt.querySelector('span').textContent = P.ghost ? 'Preview on' : 'Preview off';
+  const pt = $('#pieceToggle'); pt.setAttribute('aria-pressed', P.stencil); pt.querySelector('use').setAttribute('href', P.stencil ? '#i-eye' : '#i-eye-slash'); pt.setAttribute('aria-label', P.stencil ? 'Pieces shown' : 'Pieces hidden');
+  const gt = $('#ghostToggle'); gt.setAttribute('aria-pressed', P.ghost); gt.querySelector('use').setAttribute('href', P.ghost ? '#i-circle-dashed' : '#i-circle-dashed-slash'); gt.setAttribute('aria-label', P.ghost ? 'Preview on' : 'Preview off');
+  syncTheme(); fillRanges();
   const pp = P.paper; presetSel.value = pp.preset; $('#customPaper').hidden = pp.preset !== 'custom';
   $('#pw').value = fmtNum(pp.w); $('#ph').value = fmtNum(pp.h); $('#punit').value = pp.unit; $('#paperDims').textContent = paperLabel(pp);
   $('#orient').disabled = pp.w === pp.h; resOptions(); $('#textures')._sync(); $('#momentum').checked = P.momentum; $('#oneWay').checked = P.oneWay;
@@ -791,6 +890,7 @@ function editorFor(L, li) {
     <label class="check"><input type="checkbox" data-k="rainbow" ${L.rainbow ? 'checked' : ''}> Rainbow ink</label>
     <div class="btnrow"><button type="button" class="btn sm" data-done>Done</button><button type="button" class="btn sm" data-copy title="Copy this pass's pieces and pen as a recipe"><svg><use href="#i-copy"/></svg>Copy recipe</button><button type="button" class="btn sm" data-reuse title="Set up the next pass exactly like this one">Draw it again</button><small class="draghint">Drag ⋮⋮ to change the order</small></div>`;
   ed.addEventListener('change', () => { editArmed = false; });
+  requestAnimationFrame(() => fillRanges(ed));
   ed.querySelectorAll('[data-pen]').forEach(b => b.addEventListener('click', () => {
     editArmed = false; editLayer(L, li, l => { l.pen = b.dataset.pen; l.width = PEN_STYLES[l.pen].w; });
     ed.querySelectorAll('[data-pen]').forEach(x => x.setAttribute('aria-pressed', x === b));

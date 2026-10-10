@@ -82,41 +82,9 @@ function compose() {
 
 // ---------- drawing ----------
 function drawFull(c, lay) { c.save(); worldT(c); drawPlan(c, lay.plan, lay.L.opacity); c.restore(); }
-// draw only points i0..i1 of a layer; every op keeps a cursor so this stays cheap as the line grows.
-// Translucent passes use butt caps so the joins between frames never show as beads.
-function drawRange(c, lay, i0, i1) {
-  const { xy, ops } = lay.plan;
-  c.save(); worldT(c); c.lineJoin = 'round';
-  for (const o of ops) {
-    c.globalAlpha = o.a * lay.L.opacity; c.globalCompositeOperation = o.blend || 'source-over';
-    if (o.k === 'path') {
-      const dx = o.dx || 0, dy = o.dy || 0, runs = o.runs;
-      let r = o._r || 0; while (r < runs.length && runs[r][1] < i0) r++; o._r = r;
-      c.strokeStyle = o.c; c.lineWidth = o.w; c.lineCap = o.a >= 1 ? 'round' : 'butt'; c.beginPath();
-      for (let j = r; j < runs.length && runs[j][0] < i1; j++) {
-        const s = Math.max(runs[j][0], i0), e = Math.min(runs[j][1], i1); if (e <= s) continue;
-        c.moveTo(xy[s * 2] + dx, xy[s * 2 + 1] + dy); for (let i = s + 1; i <= e; i++) c.lineTo(xy[i * 2] + dx, xy[i * 2 + 1] + dy);
-      }
-      c.stroke();
-    } else {
-      const ix = o.ix || [], l = o.list;
-      let r = o._r || 0; while (r < ix.length && ix[r] < i0) r++;
-      c.fillStyle = o.c; c.beginPath();
-      for (; r < ix.length && ix[r] < i1; r++) { const x = l[r * 3], y = l[r * 3 + 1], rr = l[r * 3 + 2]; c.moveTo(x + rr, y); c.arc(x, y, rr, 0, TAU); }
-      o._r = r; c.fill();
-    }
-  }
-  c.restore();
-}
-function drawStars(c, lay) {
-  c.save(); worldT(c); c.lineCap = 'round';
-  for (const o of lay.plan.ops) if (o.k === 'dots' && o.stars.length) {
-    c.globalAlpha = o.a; c.strokeStyle = o.c; c.lineWidth = o.stars[2] * .35; c.beginPath();
-    for (let i = 0; i < o.stars.length; i += 3) { const x = o.stars[i], y = o.stars[i + 1], r = o.stars[i + 2]; c.moveTo(x - r * 2.6, y); c.lineTo(x + r * 2.6, y); c.moveTo(x, y - r * 2.6); c.lineTo(x, y + r * 2.6); }
-    c.stroke();
-  }
-  c.restore();
-}
+// draw only points i0..i1 of a layer (shared with the video export: drawPlanRange in pens.js)
+function drawRange(c, lay, i0, i1) { c.save(); worldT(c); drawPlanRange(c, lay.plan, lay.L.opacity, i0, i1); c.restore(); }
+function drawStars(c, lay) { c.save(); worldT(c); drawPlanStars(c, lay.plan, 1); c.restore(); }
 const clear = c => { const x = c.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, c.width, c.height); };
 const runJobs = () => { while (jobs.length) jobs.shift()(); };
 
@@ -253,7 +221,7 @@ group('#wSpeed', 'data-speed', 'speed');
 group('#wMood', 'data-mood', 'mood');
 group('#wLayers', 'data-layers', 'layers');
 const vol = $('#wVol'), muteBtn = $('#wMute'), pauseBtn = $('#wPause');
-const syncSound = () => { vol.value = prefs.vol; muteBtn.setAttribute('aria-pressed', String(prefs.muted)); muteBtn.setAttribute('aria-label', prefs.muted ? 'Unmute clicks' : 'Mute clicks'); };
+const syncSound = () => { vol.value = prefs.vol; vol.style.setProperty('--fill', prefs.vol * 100 + '%'); muteBtn.setAttribute('aria-pressed', String(prefs.muted)); muteBtn.setAttribute('aria-label', prefs.muted ? 'Unmute clicks' : 'Mute clicks'); };
 vol.addEventListener('input', () => { prefs.vol = +vol.value; prefs.muted = false; syncSound(); savePrefs(); });
 muteBtn.addEventListener('click', () => { prefs.muted = !prefs.muted; syncSound(); savePrefs(); });
 const setPaused = (p, asleep = false) => {
