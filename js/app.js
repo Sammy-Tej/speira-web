@@ -7,7 +7,7 @@ const PENS = ['#1b1b1f', '#e63946', '#f77f00', '#fcbf49', '#2a9d8f', '#3a86ff', 
 const PAPERS = [['#ffffff', 'White'], ['#f6f1e7', 'Cream'], ['#e8d8b9', 'Kraft'], ['#111114', 'Black card'], ['#14213d', 'Navy'], ['#2b2d42', 'Slate']];
 
 // ---------- state ----------
-const S = { ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0, pen: 'ballpoint', rainbow: false };
+const S = { angle: 0, ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0, pen: 'ballpoint', rainbow: false };
 const P = { bg: '#ffffff', stencil: true, autoHide: true, ghost: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic', paper: { ...DEFAULT_PAPER }, svgMode: 'effects', exportFmt: 'png', jpgQ: .9, vidLen: 12, vidSize: 1080, vidPieces: false, folds: { pieces: true, pen: false, paper: false, layers: false } };
 const PW = () => paperWorld(P.paper)[0], PH = () => paperWorld(P.paper)[1];
 let layers = [], cur = null, playing = false, uid = 1;
@@ -39,7 +39,7 @@ function load() {
 
 // ---------- traces (cached per layer) ----------
 function tr(L) {
-  const key = [L.ring, L.mode, L.wheel, L.hole, L.shift, L.pitch, L.cx, L.cy].join();
+  const key = [L.ring, L.mode, L.wheel, L.hole, L.shift, L.pitch, L.cx, L.cy, L.angle || 0].join();
   if (L._key !== key) { L._tr = trace(L); L._key = key; }
   return L._tr;
 }
@@ -188,10 +188,34 @@ function printed(c, text, x, y, size, rot, rgb, alpha = .75) {
 // A ring cache is { cv, key }: one for the main paper, one for Just watch.
 const ringCache = () => ({ cv: document.createElement('canvas'), key: '' });
 const mainRing = ringCache();
+// A bar's outline: teeth all the way round the stadium-shaped edge, following its pitch line
+function barGearPath(c, B, cx, cy, teeth, h) {
+  const N = teeth * 12, p = B.Lp / teeth;
+  for (let i = 0; i <= N; i++) {
+    const s = i / N * B.Lp, [x, y, psi] = barPoint(B, cx, cy, s % B.Lp), off = h / 2 * clampN(Math.cos(TAU * (s / p + .5)) * 1.7, -1, 1);
+    const ax = x + off * Math.cos(psi), ay = y + off * Math.sin(psi);
+    i ? c.lineTo(ax, ay) : c.moveTo(ax, ay);
+  }
+  c.closePath();
+}
+// the plain slot down the middle of a bar (smaller stadium, no teeth)
+function barSlotPath(c, B, cx, cy, re) {
+  const S = { re, ls: B.ls, Lp: 2 * B.ls + TAU * re, ang: B.ang, ca: B.ca, sa: B.sa }, N = 96;
+  for (let i = 0; i <= N; i++) { const [x, y] = barPoint(S, cx, cy, (i / N * S.Lp) % S.Lp); i ? c.lineTo(x, y) : c.moveTo(x, y); }
+  c.closePath();
+}
 function paintRing(L, G, v, out, W, H) {
-  const key = [L.ring, L.pitch, L.cx, L.cy, P.tint, v.s, v.ox, v.oy, W, H].join();
+  const key = [L.ring, L.pitch, L.cx, L.cy, L.angle || 0, P.tint, v.s, v.ox, v.oy, W, H].join();
   if (key === out.key) return;
   out.key = key; out.cv.width = W; out.cv.height = H;
+  if (G.bar) {
+    const c = out.cv.getContext('2d'), B = G.bar, h = G.p * .55, rgb = TINTS[P.tint][0], slot = B.re * .42;
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);
+    acrylic(c, () => { barGearPath(c, B, L.cx, L.cy, G.T, h); barSlotPath(c, B, L.cx, L.cy, slot); }, rgb, L.cx, L.cy, B.ls / 2 + B.re, false, v);
+    const fs = clampN((B.re - h / 2 - slot) * .45, 8, 30);
+    printed(c, String(G.T), L.cx, L.cy - (slot + B.re - h / 2) / 2, fs, 0, rgb);
+    return;
+  }
   const c = out.cv.getContext('2d'), ring = G.ring, h = G.p * .55, Ri = radiusOf(ring.inner, G.p), Ro = radiusOf(ring.outer, G.p), rgb = TINTS[P.tint][0];
   c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);
   acrylic(c, () => { gearPath(c, L.cx, L.cy, ring.outer, Ro, h, 0, true); gearPath(c, L.cx, L.cy, ring.inner, Ri, h, 0, false); }, rgb, L.cx, L.cy, Ro, false, v);
@@ -469,7 +493,8 @@ function download(blob, name) {
 }
 const visibleInk = () => [...layers.filter(l => l.visible), cur].filter(inked);
 const penName = L => (PEN_STYLES[L.pen] || PEN_STYLES.ballpoint).label;
-const describe = L => `${RINGS[L.ring].inner}/${RINGS[L.ring].outer} ring, ${L.wheel}-tooth wheel ${L.mode}, hole ${L.hole + 1}, shift ${L.shift}, ${penName(L).toLowerCase()} pen${L.rainbow ? ', rainbow ink' : ''}`;
+const pieceWords = L => isBar(L) ? pieceName(L.ring).toLowerCase() : `${pieceName(L.ring).replace(' / ', '/')} ring`;
+const describe = L => `${pieceWords(L)}, ${L.wheel}-tooth wheel ${L.mode}, hole ${L.hole + 1}, shift ${L.shift}, ${penName(L).toLowerCase()} pen${L.rainbow ? ', rainbow ink' : ''}`;
 // Douglas–Peucker on the dense trace: drops points that deviate less than `tol` paper units (1/25,000 of the page)
 function simplify(xs, ys, tol) {
   const n = xs.length; if (n < 3) return [...Array(n).keys()];
@@ -499,7 +524,7 @@ function exportSVG(mode = P.svgMode) {
   out.push('<g clip-path="url(#paper)" fill="none" stroke-linecap="round" stroke-linejoin="round">');
   // one named group per Spiro Lab layer, so design apps show readable layer names
   visibleInk().forEach((L, i) => {
-    const plan = planOf(L), label = `Layer ${i + 1} · ${penName(L)}${L.rainbow ? ' rainbow' : ''} · ${RINGS[L.ring].inner}/${RINGS[L.ring].outer} · wheel ${L.wheel} ${L.mode}`;
+    const plan = planOf(L), label = `Layer ${i + 1} · ${penName(L)}${L.rainbow ? ' rainbow' : ''} · ${pieceName(L.ring).replace(' / ', '/')} · wheel ${L.wheel} ${L.mode}`;
     const id = `layer-${String(i + 1).padStart(2, '0')}-${penName(L).toLowerCase().replace(/[^a-z]+/g, '-')}-wheel-${L.wheel}-${L.mode}`;
     out.push(`<g id="${id}" data-name="${label}"><title>${label}</title><desc>${describe(L)}</desc>`);
     out.push(mode === 'plain' ? plainSVG(L, L._xy, simplify) : planToSVG(plan, L.opacity, simplify));
@@ -610,8 +635,9 @@ function chips(box, items, get, set, label = v => v, keepPos = false) {
   });
   box._sync = () => [...box.children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v) === String(get())));
 }
-chips($('#rings'), [0, 1], () => S.ring, (s, v) => s.ring = +v, v => RINGS[v].inner + ' / ' + RINGS[v].outer);
-chips($('#modes'), ['inside', 'outside'], () => S.mode, (s, v) => s.mode = v, v => v === 'inside' ? 'Inside ring' : 'Outside ring');
+// rings, then bars; a bar only has teeth on the outside, so choosing one rolls the wheel round the outside
+chips($('#rings'), PIECES.map((_, i) => i), () => S.ring, (s, v) => { s.ring = +v; if (isBar(s)) s.mode = 'outside'; }, v => pieceName(+v));
+chips($('#modes'), ['inside', 'outside'], () => S.mode, (s, v) => { if (!(isBar(s) && v === 'inside')) s.mode = v; }, v => v === 'inside' ? 'Inside' : 'Outside');
 chips($('#wheels'), WHEELS, () => S.wheel, (s, v) => { s.wheel = +v; s.hole = Math.min(s.hole, holesFor(+v, s.pitch).length - 1); });
 function swatches(box, list, get, set) {
   box.innerHTML = '';
@@ -641,6 +667,7 @@ bind('#rainbow', 'change', e => change(s => s.rainbow = e.target.checked, true))
 bind('#bgColor', 'input', e => { P.bg = e.target.value; syncControls(); save(); });
 bind('#hole', 'input', e => change(s => s.hole = +e.target.value - 1));
 bind('#width', 'input', e => change(s => s.width = +e.target.value, true));
+bind('#angle', 'input', e => change(s => s.angle = +e.target.value));
 bind('#opacity', 'input', e => change(s => s.opacity = +e.target.value, true));
 bind('#pitch', 'input', e => change(s => { s.pitch = +e.target.value; s.hole = Math.min(s.hole, holesFor(s.wheel, s.pitch).length - 1); }));
 bind('#shiftDown', 'click', () => change(s => s.shift = (s.shift - 1 + 1000) % 1000));
@@ -802,6 +829,8 @@ function fillRanges(root = document) { root.querySelectorAll('input[type=range]'
 document.addEventListener('input', e => { if (e.target.matches && e.target.matches('input[type=range]')) fillOf(e.target); }, true);
 function syncControls() {
   ['#rings', '#modes', '#wheels', '#pens', '#papers', '#tints', '#penStyles'].forEach(s => $(s)._sync());
+  $('#modes [data-v="inside"]').disabled = isBar(S);
+  $('#angleRow').hidden = !isBar(S); $('#angle').value = S.angle || 0; $('#angleOut').textContent = (S.angle || 0) + '°';
   $('#rainbow').checked = !!S.rainbow;
   const G = geom(S);
   $('#hole').max = G.holes.length; $('#hole').value = G.hole + 1; $('#holeOut').textContent = `${G.hole + 1} of ${G.holes.length}`;
@@ -838,7 +867,7 @@ function readout() {
 }
 // ---------- layer list: show/hide, delete, edit a finished pass, drag to reorder ----------
 let editId = null, editArmed = false;
-const layerTitle = L => `${RINGS[L.ring].inner}/${RINGS[L.ring].outer} · ${L.wheel} wheel`;
+const layerTitle = L => `${pieceName(L.ring).replace(' / ', '/')} · ${L.wheel} wheel`;
 const layerSub = L => `${penName(L)}${L.rainbow ? ' rainbow' : ''} · ${L.mode} · hole ${L.hole + 1} · shift ${L.shift}`;
 function refreshRow(li, L) {
   li.querySelector('.dot').className = 'dot' + (L.rainbow ? ' rainbow' : ''); li.querySelector('.dot').style.setProperty('--c', L.color);
@@ -856,22 +885,22 @@ function moveLayer(L, by) {
 }
 // ---------- recipe card: a layer's exact settings as text you can share and paste back ----------
 // First line is for people, second line is a code Speira reads back (base64url JSON, versioned).
-const RECIPE_KEYS = ['ring', 'mode', 'wheel', 'hole', 'shift', 'pitch', 'pen', 'color', 'width', 'opacity', 'rainbow'];
+const RECIPE_KEYS = ['ring', 'mode', 'wheel', 'hole', 'shift', 'pitch', 'pen', 'color', 'width', 'opacity', 'rainbow', 'angle'];
 function recipeOf(L) {
-  const r = RINGS[L.ring], code = btoa(JSON.stringify(RECIPE_KEYS.map(k => L[k]))).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
-  return `Speira recipe: ${r.inner}/${r.outer} ring, wheel ${L.mode} · ${L.wheel}-tooth wheel · hole ${L.hole + 1} · start shift ${L.shift} · kit size ${+(+L.pitch).toFixed(2)} · ` +
+  const code = btoa(JSON.stringify(RECIPE_KEYS.map(k => L[k]))).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+  return `Speira recipe: ${pieceWords(L)}${isBar(L) && L.angle ? ` at ${L.angle}°` : ''}, wheel ${L.mode} · ${L.wheel}-tooth wheel · hole ${L.hole + 1} · start shift ${L.shift} · kit size ${+(+L.pitch).toFixed(2)} · ` +
     `${penName(L)} ${L.color}${L.rainbow ? ' rainbow' : ''}, ${(+L.width).toFixed(1)} thick, ${Math.round(L.opacity * 100)}%\nspeira:1:${code}`;
 }
 function readRecipe(text) {
   const m = /speira:1:([A-Za-z0-9_-]+)/.exec(text || ''); if (!m) return null;
   try {
     const v = JSON.parse(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')));
-    if (!Array.isArray(v) || v.length !== RECIPE_KEYS.length) return null;
-    const o = Object.fromEntries(RECIPE_KEYS.map((k, i) => [k, v[i]]));
-    const ok = RINGS[o.ring] && ['inside', 'outside'].includes(o.mode) && WHEELS.includes(o.wheel) && Number.isInteger(o.hole) && o.hole >= 0 &&
+    if (!Array.isArray(v) || v.length < RECIPE_KEYS.length - 1 || v.length > RECIPE_KEYS.length) return null;   // older codes have no angle
+    const o = Object.fromEntries(RECIPE_KEYS.map((k, i) => [k, v[i]])); o.angle = +o.angle || 0;
+    const ok = PIECES[o.ring] && ['inside', 'outside'].includes(o.mode) && WHEELS.includes(o.wheel) && Number.isInteger(o.hole) && o.hole >= 0 &&
       Number.isFinite(o.shift) && o.pitch > 0 && o.pitch < 200 && PEN_STYLES[o.pen] && /^#[0-9a-f]{6}$/i.test(o.color) && o.width > 0 && o.opacity > 0 && o.opacity <= 1;
     if (!ok) return null;
-    o.hole = Math.min(o.hole, holesFor(o.wheel, o.pitch).length - 1); o.rainbow = !!o.rainbow;
+    o.hole = Math.min(o.hole, holesFor(o.wheel, o.pitch).length - 1); o.rainbow = !!o.rainbow; if (isBar(o)) o.mode = 'outside';
     return o;
   } catch { return null; }
 }
