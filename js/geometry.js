@@ -17,11 +17,20 @@ const BARS = [
   { id: 'b84', kind: 'bar', straight: 24, end: 18 },
   { id: 'b108', kind: 'bar', straight: 36, end: 18 }
 ];
+// Shaped rings: an oval, a rounded triangle and a rounded square. The wheel can roll inside or outside the
+// same toothed edge (inside only if the wheel is small enough to get round the tightest curve).
+const SHAPES = [
+  { id: 'oval120', kind: 'shape', shape: 'oval', name: 'Oval', teeth: 120 },
+  { id: 'tri108', kind: 'shape', shape: 'poly', sides: 3, name: 'Triangle', teeth: 108 },
+  { id: 'sq120', kind: 'shape', shape: 'poly', sides: 4, name: 'Square', teeth: 120 }
+];
 // Every piece the wheel can roll against. A layer's `ring` is an index into this list (rings first, so old drawings still work).
-const PIECES = [...RINGS.map(r => ({ kind: 'ring', ...r })), ...BARS];
+const PIECES = [...RINGS.map(r => ({ kind: 'ring', ...r })), ...BARS, ...SHAPES];
 const barTeeth = b => 2 * b.straight + 2 * b.end;
-const pieceName = i => { const pc = PIECES[i]; return pc.kind === 'bar' ? `Bar ${barTeeth(pc)}` : `${pc.inner} / ${pc.outer}`; };
+const pieceName = i => { const pc = PIECES[i]; return pc.kind === 'bar' ? `Bar ${barTeeth(pc)}` : pc.kind === 'shape' ? `${pc.name} ${pc.teeth}` : `${pc.inner} / ${pc.outer}`; };
 const isBar = L => PIECES[L.ring] && PIECES[L.ring].kind === 'bar';
+const isShape = L => PIECES[L.ring] && PIECES[L.ring].kind === 'shape';
+const isTrack = L => isBar(L) || isShape(L);   // anything that isn't a plain round ring (it can be turned to an angle)
 
 const TAU = Math.PI * 2;
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
@@ -40,6 +49,7 @@ function holesFor(teeth, pitch) {
 // Everything derived from one layer's settings.
 function geom(L) {
   if (isBar(L)) return geomBar(L);
+  if (isShape(L)) return geomShape(L);
   const ring = RINGS[L.ring], inside = L.mode === 'inside';
   const T = inside ? ring.inner : ring.outer, t = L.wheel, p = L.pitch;
   const Rr = radiusOf(T, p), rr = radiusOf(t, p);
@@ -86,8 +96,64 @@ function barPoint(B, cx, cy, s) {
   const ca = B.ca ?? 1, sa = B.sa ?? 0;
   return [cx + x * ca - y * sa, cy + x * sa + y * ca, psi + (B.ang || 0)];
 }
+// A shaped ring's pitch line as a chain of arcs and straight sides, scaled so its length is exactly teeth × pitch.
+// Each segment knows where its outward normal points (ψ), which only ever increases going round: the shape is convex.
+function shapeSegments(pc, p) {
+  const segs = [];
+  if (pc.shape === 'oval') {
+    // a four-arc oval: gentle arcs top and bottom, tighter arcs at the ends, meeting smoothly
+    const al = .7, k = 2.6, dd = k - 1;   // half-angle of the end arcs, big/small radius ratio
+    const e = dd * Math.cos(al), f = dd * Math.sin(al), per = 4 * al + 2 * (Math.PI - 2 * al) * k, sc = pc.teeth * p / per;
+    const rb = sc, ra = k * sc;
+    segs.push({ arc: true, x: e * sc, y: 0, r: rb, a0: -al, a1: al });
+    segs.push({ arc: true, x: 0, y: -f * sc, r: ra, a0: al, a1: Math.PI - al });
+    segs.push({ arc: true, x: -e * sc, y: 0, r: rb, a0: Math.PI - al, a1: Math.PI + al });
+    segs.push({ arc: true, x: 0, y: f * sc, r: ra, a0: Math.PI + al, a1: TAU - al });
+    return { segs, minR: rb };
+  }
+  // rounded polygon: corner arcs centred on a smaller polygon, joined by straight sides; a point faces up
+  const n = pc.sides, rcRatio = .55, side = 1, rc = rcRatio * side, R0 = side / (2 * Math.sin(Math.PI / n));
+  const sc = pc.teeth * p / (n * side + TAU * rc);
+  for (let i = 0; i < n; i++) {
+    const th = -Math.PI / 2 + i * TAU / n, cx = R0 * sc * Math.cos(th), cy = R0 * sc * Math.sin(th);
+    segs.push({ arc: true, x: cx, y: cy, r: rc * sc, a0: th - Math.PI / n, a1: th + Math.PI / n });
+    const psi = th + Math.PI / n;
+    segs.push({ arc: false, x: cx + rc * sc * Math.cos(psi), y: cy + rc * sc * Math.sin(psi), psi, len: side * sc });
+  }
+  return { segs, minR: rc * sc };
+}
+function geomShape(L) {
+  const pc = PIECES[L.ring], T = pc.teeth, t = L.wheel, p = L.pitch, inside = L.mode === 'inside';
+  const { segs, minR } = shapeSegments(pc, p), ang = ((L.angle || 0) * Math.PI) / 180;
+  let acc = 0; for (const g of segs) { g.len = g.arc ? g.r * (g.a1 - g.a0) : g.len; g.s0 = acc; acc += g.len; }
+  const rr = radiusOf(t, p), holes = holesFor(t, p), hole = clampN(L.hole, 0, holes.length - 1), h = holes[hole], G = gcd(T, t);
+  const far = Math.max(...segs.map(g => Math.hypot(g.x, g.y) + (g.arc ? g.r : 0)));
+  return {
+    ring: pc, track: { segs, Lp: acc, ang, ca: Math.cos(ang), sa: Math.sin(ang), minR }, inside, fits: !inside || rr < minR * .98,
+    T, t, p, Rr: far, rr, holes, hole, d: h.d, a: h.a,
+    c: far + (inside ? -rr : rr), ratio: inside ? -(T - t) / t : (T + t) / t,
+    total: (TAU * t) / G, petals: T / G, laps: t / G, rot: (TAU * L.shift) / T
+  };
+}
+// point on a shaped ring's pitch line `s` along, turned by its angle, with the outward normal angle ψ
+function trackPoint(K, cx, cy, s) {
+  let g = K.segs[K.segs.length - 1];
+  for (const q of K.segs) if (s < q.s0 + q.len) { g = q; break; }
+  const u = s - g.s0;
+  let x, y, psi;
+  if (g.arc) { psi = g.a0 + u / g.r; x = g.x + g.r * Math.cos(psi); y = g.y + g.r * Math.sin(psi); }
+  else { psi = g.psi; x = g.x + u * Math.cos(psi + Math.PI / 2); y = g.y + u * Math.sin(psi + Math.PI / 2); }
+  return [cx + x * K.ca - y * K.sa, cy + x * K.sa + y * K.ca, psi + K.ang];
+}
 // Wheel centre, wheel orientation and pen position after travelling `th` radians round the ring.
 function wheelAt(G, L, th) {
+  if (G.track) {
+    // same rule as the bar; inside, the wheel turns the other way relative to the distance travelled
+    const K = G.track, u = (G.rot + th) / TAU * K.Lp, lap = Math.floor(u / K.Lp), [x, y, psi] = trackPoint(K, L.cx, L.cy, u - lap * K.Lp);
+    const psiU = psi + lap * TAU, sgn = G.inside ? -1 : 1, spin = sgn * u / G.rr + psiU;
+    const wx = x + sgn * G.rr * Math.cos(psi), wy = y + sgn * G.rr * Math.sin(psi);
+    return { wx, wy, spin, ang: psi, px: wx + G.d * Math.cos(spin + G.a), py: wy + G.d * Math.sin(spin + G.a) };
+  }
   if (G.bar) {
     // rolling round a shape: the wheel turns by distance travelled ÷ its radius, plus however much the edge itself has turned
     const B = G.bar, u = (G.rot + th) / TAU * B.Lp, lap = Math.floor(u / B.Lp), [x, y, psi] = barPoint(B, L.cx, L.cy, u - lap * B.Lp);
@@ -121,4 +187,4 @@ function* rangeIdx(tr, a, b) {
   for (let i = i0; i <= i1; i++) yield ((i % N) + N) % N;
 }
 
-if (typeof module !== 'undefined') module.exports = { PAPER, RINGS, BARS, PIECES, pieceName, isBar, WHEELS, TAU, gcd, radiusOf, holesFor, geom, wheelAt, trace, rangeIdx };
+if (typeof module !== 'undefined') module.exports = { PAPER, RINGS, BARS, SHAPES, PIECES, pieceName, isBar, isShape, isTrack, trackPoint, WHEELS, TAU, gcd, radiusOf, holesFor, geom, wheelAt, trace, rangeIdx };

@@ -320,3 +320,4 @@ input[type=number], input[type=text] { -webkit-user-select: text; user-select: t
 .stagebtn.round { width: 40px; height: 40px; padding: 0; justify-content: center; }
 .stagebtn.round svg { width: 20px; height: 20px; }
 .stepper .ico { border-color: var(--line); background: var(--chip); color: var(--text); }
+.chip:disabled { opacity: .35; cursor: default; }
