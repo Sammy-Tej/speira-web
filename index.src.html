@@ -51,6 +51,19 @@
   <div class="wtoast" id="wToast" role="status" aria-live="polite"></div>
   <p class="whint">Drag in circles to roll it yourself · <kbd>Space</kbd> pause · <kbd>→</kbd> next layer · <kbd>R</kbd> rainbow · <kbd>P</kbd> pieces · <kbd>K</kbd> keep · <kbd>M</kbd> mute · <kbd>Esc</kbd> leave</p>
 </div>
+<div class="helpwrap" id="help" hidden>
+  <div class="helppanel" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <div class="helphead">
+      <h2 id="helpTitle">How to use Speira</h2>
+      <input type="text" id="helpSearch" placeholder="Search Help" aria-label="Search Help" autocomplete="off" spellcheck="false">
+      <button class="ico" id="helpClose" type="button" aria-label="Close Help"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div class="helpcols">
+      <nav class="helpnavs" id="helpNav" aria-label="Help sections"></nav>
+      <div class="helpbody" id="helpBody"><p class="helpnone" id="helpNone" hidden>Nothing matches that. Try a shorter word, like “pen” or “export”.</p></div>
+    </div>
+  </div>
+</div>
 <header class="top">
   <div class="brand">
     <img class="logo" src="brand/web/icon-192.png" alt="" width="30" height="30">
@@ -61,6 +74,7 @@
     <button class="ico" id="redo" type="button" title="Redo (⇧⌘Z)" aria-label="Redo"><svg><use href="#i-arrow-clockwise"/></svg></button>
   </div>
   <div class="export menuwrap">
+    <button class="btn" id="helpBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="help" title="How to use Speira (?)"><svg><use href="#i-question"/></svg>Help</button>
     <div class="themesw" role="group" aria-label="Theme">
       <button type="button" data-theme-pick="light" aria-label="Light theme" title="Light"><svg><use href="#i-sun"/></svg></button>
       <button type="button" data-theme-pick="dark" aria-label="Dark theme" title="Dark"><svg><use href="#i-moon"/></svg></button>
@@ -137,7 +151,8 @@
     <details class="card fold" data-fold="pieces">
       <summary><h2>Pieces</h2><svg class="chev" aria-hidden="true"><use href="#i-caret-down"/></svg></summary>
       <div class="foldbody">
-      <div class="field"><span class="lbl">Piece <small>round rings (teeth inside / outside), bars and shapes</small></span><div class="chips two" id="rings"></div></div>
+      <div class="field"><span class="lbl">Piece <small>round rings (teeth inside / outside), bars, shapes, or a wheel</small></span><div class="chips two" id="rings"></div></div>
+      <div class="field" id="baseRow" hidden><span class="lbl">Fixed wheel <small>teeth on the wheel pinned to the paper</small></span><div class="chips grid" id="bases"></div></div>
       <div class="field"><span class="lbl">Wheel rolls</span><div class="chips two" id="modes"></div></div>
       <div class="field"><span class="lbl">Wheel <small>teeth</small></span><div class="chips grid" id="wheels"></div></div>
       <label class="row"><span>Pen hole</span><input type="range" id="hole" min="1" max="10" step="1"><output id="holeOut"></output></label>
@@ -200,5 +215,7 @@
 <script src="js/paper.js"></script>
 <script src="js/app.js"></script>
 <script src="js/watch.js"></script>
+<script src="js/help-content.js"></script>
+<script src="js/help.js"></script>
 </body>
 </html>

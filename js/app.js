@@ -7,7 +7,7 @@ const PENS = ['#1b1b1f', '#e63946', '#f77f00', '#fcbf49', '#2a9d8f', '#3a86ff', 
 const PAPERS = [['#ffffff', 'White'], ['#f6f1e7', 'Cream'], ['#e8d8b9', 'Kraft'], ['#111114', 'Black card'], ['#14213d', 'Navy'], ['#2b2d42', 'Slate']];
 
 // ---------- state ----------
-const S = { angle: 0, ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0, pen: 'ballpoint', rainbow: false };
+const S = { angle: 0, base: 60, ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0, pen: 'ballpoint', rainbow: false };
 const P = { bg: '#ffffff', stencil: true, autoHide: true, ghost: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic', paper: { ...DEFAULT_PAPER }, svgMode: 'effects', exportFmt: 'png', jpgQ: .9, vidLen: 12, vidSize: 1080, vidPieces: false, folds: { pieces: true, pen: false, paper: false, layers: false } };
 const PW = () => paperWorld(P.paper)[0], PH = () => paperWorld(P.paper)[1];
 let layers = [], cur = null, playing = false, uid = 1;
@@ -39,7 +39,7 @@ function load() {
 
 // ---------- traces (cached per layer) ----------
 function tr(L) {
-  const key = [L.ring, L.mode, L.wheel, L.hole, L.shift, L.pitch, L.cx, L.cy, L.angle || 0].join();
+  const key = [L.ring, L.mode, L.wheel, L.hole, L.shift, L.pitch, L.cx, L.cy, L.angle || 0, L.base || 60].join();
   if (L._key !== key) { L._tr = trace(L); L._key = key; }
   return L._tr;
 }
@@ -217,19 +217,29 @@ function trackEdgePath(c, K, cx, cy, teeth, h, tipSign, offset = 0) {
   c.closePath();
 }
 function paintRing(L, G, v, out, W, H) {
-  const key = [L.ring, L.pitch, L.cx, L.cy, L.angle || 0, P.tint, v.s, v.ox, v.oy, W, H].join();
+  const key = [L.ring, L.pitch, L.cx, L.cy, L.angle || 0, L.base || 60, P.tint, v.s, v.ox, v.oy, W, H].join();
   if (key === out.key) return;
   out.key = key; out.cv.width = W; out.cv.height = H;
   if (G.track) {
-    // a band of acrylic: teeth on the edge the wheel rolls against, a plain edge on the other side
-    const c = out.cv.getContext('2d'), K = G.track, h = G.p * .55, rgb = TINTS[P.tint][0];
-    const band = G.inside ? G.p * 4.5 : Math.min(G.p * 4.5, K.minR * .7), sign = G.inside ? -1 : 1;
+    // a band of acrylic with teeth on both edges, like the round rings: outer edge to roll round, inner edge to roll inside
+    const c = out.cv.getContext('2d'), pc = G.ring, h = G.p * .55, rgb = TINTS[P.tint][0], ins = shapeInset(G.p);
+    const Ko = shapeTrack(pc, G.p, 0, G.track.ang), Ki = shapeTrack(pc, G.p, -ins, G.track.ang), To = pc.teeth, Ti = pc.teeth - SHAPE_GAP;
     c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);
-    acrylic(c, () => { trackEdgePath(c, K, L.cx, L.cy, G.T, h, sign); trackEdgePath(c, K, L.cx, L.cy, 0, 0, 0, -sign * band); }, rgb, L.cx, L.cy, G.Rr, false, v);
-    // tooth count printed in the band at the top
-    let best = 0, bd = 9; for (let i = 0; i < 360; i++) { const s = i / 360 * K.Lp, q = trackPoint(K, L.cx, L.cy, s); const d = Math.abs(Math.atan2(Math.sin(q[2] + Math.PI / 2), Math.cos(q[2] + Math.PI / 2))); if (d < bd) { bd = d; best = s; } }
-    const [tx, ty, tp] = trackPoint(K, L.cx, L.cy, best), mid = -sign * band / 2, fs = clampN(band * .32, 8, 30);
-    printed(c, String(G.T), tx + mid * Math.cos(tp), ty + mid * Math.sin(tp), fs, 0, rgb);
+    acrylic(c, () => { trackEdgePath(c, Ko, L.cx, L.cy, To, h, 1); trackEdgePath(c, Ki, L.cx, L.cy, Ti, h, -1); }, rgb, L.cx, L.cy, G.Rr, false, v);
+    // both tooth counts printed in the band, at whichever point of the outer edge faces up
+    let best = 0, bd = 9; for (let i = 0; i < 360; i++) { const s = i / 360 * Ko.Lp, q = trackPoint(Ko, L.cx, L.cy, s); const d = Math.abs(Math.atan2(Math.sin(q[2] + Math.PI / 2), Math.cos(q[2] + Math.PI / 2))); if (d < bd) { bd = d; best = s; } }
+    const [tx, ty, tp] = trackPoint(Ko, L.cx, L.cy, best), fs = clampN((ins - h) * .34, 7, 26), at = k => [tx - k * Math.cos(tp), ty - k * Math.sin(tp)];
+    printed(c, String(To), ...at(h * .6 + fs * .7), fs * .85, 0, rgb, .6);
+    printed(c, String(Ti), ...at(ins - h * .6 - fs * .7), fs, 0, rgb);
+    return;
+  }
+  if (G.ring.base) {
+    // a wheel pinned to the paper: teeth all round, a pin in the middle, its tooth count
+    const c = out.cv.getContext('2d'), h = G.p * .55, rgb = TINTS[P.tint][0], R = radiusOf(G.T, G.p);
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);
+    acrylic(c, () => { gearPath(c, L.cx, L.cy, G.T, R, h, 0, true); c.moveTo(L.cx + G.p * .5, L.cy); c.arc(L.cx, L.cy, G.p * .5, 0, TAU, true); }, rgb, L.cx, L.cy, R, false, v);
+    c.beginPath(); c.arc(L.cx, L.cy, G.p * .32, 0, TAU); c.fillStyle = `rgba(${rgb.map(x => x * .5 | 0).join()},.85)`; c.fill();
+    printed(c, String(G.T), L.cx, L.cy - R * .5, clampN(R * .22, 8, 30), 0, rgb);
     return;
   }
   if (G.bar) {
@@ -517,7 +527,7 @@ function download(blob, name) {
 }
 const visibleInk = () => [...layers.filter(l => l.visible), cur].filter(inked);
 const penName = L => (PEN_STYLES[L.pen] || PEN_STYLES.ballpoint).label;
-const pieceWords = L => isBar(L) ? pieceName(L.ring).toLowerCase() : isShape(L) ? `${pieceName(L.ring).toLowerCase()} ring` : `${pieceName(L.ring).replace(' / ', '/')} ring`;
+const pieceWords = L => isBase(L) ? `fixed ${L.base || 60}-tooth wheel` : isBar(L) ? pieceName(L.ring).toLowerCase() : isShape(L) ? `${pieceName(L.ring).toLowerCase()} ring` : `${pieceName(L.ring).replace(' / ', '/')} ring`;
 const describe = L => `${pieceWords(L)}, ${L.wheel}-tooth wheel ${L.mode}, hole ${L.hole + 1}, shift ${L.shift}, ${penName(L).toLowerCase()} pen${L.rainbow ? ', rainbow ink' : ''}`;
 // Douglas–Peucker on the dense trace: drops points that deviate less than `tol` paper units (1/25,000 of the page)
 function simplify(xs, ys, tol) {
@@ -660,11 +670,13 @@ function chips(box, items, get, set, label = v => v, keepPos = false) {
   box._sync = () => [...box.children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v) === String(get())));
 }
 // rings, then bars; a bar only has teeth on the outside, so choosing one rolls the wheel round the outside
-chips($('#rings'), PIECES.map((_, i) => i), () => S.ring, (s, v) => { s.ring = +v; if (isBar(s)) s.mode = 'outside'; fitWheel(s); }, v => pieceName(+v));
-chips($('#modes'), ['inside', 'outside'], () => S.mode, (s, v) => { if (!(isBar(s) && v === 'inside')) s.mode = v; fitWheel(s); }, v => v === 'inside' ? 'Inside' : 'Outside');
+chips($('#rings'), PIECES.map((_, i) => i), () => S.ring, (s, v) => { s.ring = +v; if (outsideOnly(s)) s.mode = 'outside'; fitWheel(s); }, v => pieceName(+v));
+chips($('#modes'), ['inside', 'outside'], () => S.mode, (s, v) => { if (!(outsideOnly(s) && v === 'inside')) s.mode = v; fitWheel(s); }, v => v === 'inside' ? 'Inside' : 'Outside');
+// the pinned wheel's size, shown only when Fixed wheel is the piece
+chips($('#bases'), WHEELS, () => S.base, (s, v) => { s.base = +v; });
 chips($('#wheels'), WHEELS, () => S.wheel, (s, v) => { s.wheel = +v; s.hole = Math.min(s.hole, holesFor(+v, s.pitch).length - 1); });
 // inside a shaped ring the wheel has to get round the tightest curve: only smaller wheels fit
-const wheelFits = (s, w) => !(isShape(s) && s.mode === 'inside') || radiusOf(w, s.pitch) < shapeSegments(PIECES[s.ring], s.pitch).minR * .98;
+const wheelFits = (s, w) => !(isShape(s) && s.mode === 'inside') || radiusOf(w, s.pitch) < shapeSegments(PIECES[s.ring], s.pitch, -shapeInset(s.pitch)).minR * .98;
 function fitWheel(s) {
   if (wheelFits(s, s.wheel)) return;
   const w = [...WHEELS].reverse().find(x => wheelFits(s, x)) || WHEELS[0];
@@ -861,7 +873,8 @@ function fillRanges(root = document) { root.querySelectorAll('input[type=range]'
 document.addEventListener('input', e => { if (e.target.matches && e.target.matches('input[type=range]')) fillOf(e.target); }, true);
 function syncControls() {
   ['#rings', '#modes', '#wheels', '#pens', '#papers', '#tints', '#penStyles'].forEach(s => $(s)._sync());
-  $('#modes [data-v="inside"]').disabled = isBar(S);
+  $('#modes [data-v="inside"]').disabled = outsideOnly(S);
+  $('#baseRow').hidden = !isBase(S); if (isBase(S)) $('#bases')._sync();
   $$('#wheels [data-v]').forEach(b => b.disabled = !wheelFits(S, +b.dataset.v));
   $('#angleRow').hidden = !isTrack(S); $('#angle').value = S.angle || 0; $('#angleOut').textContent = (S.angle || 0) + '°';
   $('#rainbow').checked = !!S.rainbow;
@@ -918,7 +931,7 @@ function moveLayer(L, by) {
 }
 // ---------- recipe card: a layer's exact settings as text you can share and paste back ----------
 // First line is for people, second line is a code Speira reads back (base64url JSON, versioned).
-const RECIPE_KEYS = ['ring', 'mode', 'wheel', 'hole', 'shift', 'pitch', 'pen', 'color', 'width', 'opacity', 'rainbow', 'angle'];
+const RECIPE_KEYS = ['ring', 'mode', 'wheel', 'hole', 'shift', 'pitch', 'pen', 'color', 'width', 'opacity', 'rainbow', 'angle', 'base'];
 function recipeOf(L) {
   const code = btoa(JSON.stringify(RECIPE_KEYS.map(k => L[k]))).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
   return `Speira recipe: ${pieceWords(L)}${isTrack(L) && L.angle ? ` at ${L.angle}°` : ''}, wheel ${L.mode} · ${L.wheel}-tooth wheel · hole ${L.hole + 1} · start shift ${L.shift} · kit size ${+(+L.pitch).toFixed(2)} · ` +
@@ -928,12 +941,12 @@ function readRecipe(text) {
   const m = /speira:1:([A-Za-z0-9_-]+)/.exec(text || ''); if (!m) return null;
   try {
     const v = JSON.parse(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')));
-    if (!Array.isArray(v) || v.length < RECIPE_KEYS.length - 1 || v.length > RECIPE_KEYS.length) return null;   // older codes have no angle
+    if (!Array.isArray(v) || v.length < RECIPE_KEYS.length - 2 || v.length > RECIPE_KEYS.length) return null;   // older codes have no angle or base
     const o = Object.fromEntries(RECIPE_KEYS.map((k, i) => [k, v[i]])); o.angle = +o.angle || 0;
     const ok = PIECES[o.ring] && ['inside', 'outside'].includes(o.mode) && WHEELS.includes(o.wheel) && Number.isInteger(o.hole) && o.hole >= 0 &&
       Number.isFinite(o.shift) && o.pitch > 0 && o.pitch < 200 && PEN_STYLES[o.pen] && /^#[0-9a-f]{6}$/i.test(o.color) && o.width > 0 && o.opacity > 0 && o.opacity <= 1;
     if (!ok) return null;
-    o.hole = Math.min(o.hole, holesFor(o.wheel, o.pitch).length - 1); o.rainbow = !!o.rainbow; if (isBar(o) || !wheelFits(o, o.wheel)) o.mode = 'outside';
+    o.hole = Math.min(o.hole, holesFor(o.wheel, o.pitch).length - 1); o.rainbow = !!o.rainbow; if (outsideOnly(o) || !wheelFits(o, o.wheel)) o.mode = 'outside'; o.base = WHEELS.includes(+o.base) ? +o.base : 60;
     return o;
   } catch { return null; }
 }
@@ -1062,6 +1075,7 @@ addEventListener('keydown', e => {
   else if (e.key === 'h') showPieces(!P.stencil);
   else if (e.key === 'g') showGhost(!P.ghost);
   else if (e.key === 'w' && window.SpeiraWatch) SpeiraWatch.enter();
+  else if (e.key === '?' && window.SpeiraHelp) { e.preventDefault(); SpeiraHelp.open(); }
   else if (e.key === 'l') { stop(); setPen(!penUp); }
   else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.target.matches('input, select, textarea, .grip')) {
     // roll the wheel with the keyboard: one tooth per press (hold to keep rolling), Shift for ten

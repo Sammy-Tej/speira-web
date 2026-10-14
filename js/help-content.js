@@ -1,0 +1,130 @@
+// Speira's Help. KEEP THIS UP TO DATE: whenever a feature lands or changes, update the section it belongs to
+// (or add one). It is plain data on purpose, so the iPad, Mac and Apple TV apps can carry the same words.
+// Each section: id, title, a one-line summary, and items of [heading, text]. Text may use <b>, <i> and <kbd>.
+const HELP = [
+  {
+    id: 'start', title: 'Getting started', summary: 'Draw your first pattern in ten seconds.',
+    items: [
+      ['Roll the wheel', 'Drag anywhere on the paper in circles and the wheel rolls round the ring, pen and all. Flick it and it keeps going for a moment (Momentum).'],
+      ['Or let it draw', 'Press <b>Draw</b> (or <kbd>Space</kbd>) and Speira rolls the wheel for you. Press again to pause; <b>Continue</b> carries on.'],
+      ['Finish a pattern', 'Press <kbd>F</kbd> to complete the pattern in one go.'],
+      ['Start another pass', '<b>New layer</b> (or <kbd>Enter</kbd>) keeps what you drew and starts a fresh pass with the same pieces. Change the pen colour or the wheel for something new on top.'],
+      ['Changed your mind?', 'Undo with <kbd>⌘</kbd><kbd>Z</kbd>, redo with <kbd>⇧</kbd><kbd>⌘</kbd><kbd>Z</kbd>, or the arrows in the top bar.']
+    ]
+  },
+  {
+    id: 'pieces', title: 'Pieces', summary: 'Rings, bars, shapes and wheels, measured in teeth like a real kit.',
+    items: [
+      ['What the numbers mean', 'Every number on a piece is its <b>number of teeth</b>. A ring marked 96 / 150 has 96 teeth on its inside edge and 150 round the outside. The teeth on the piece and the wheel decide how many petals you get and how many trips round it takes before the pattern joins up.'],
+      ['Round rings', 'Two rings, 96 / 150 and 105 / 144. Choose <b>Inside</b> to roll the wheel inside the ring, or <b>Outside</b> to roll round it.'],
+      ['Bars', 'Bar 84 and Bar 108 are long pieces with rounded ends. The wheel rolls along both sides and round both ends, so you get ribbons and borders. Bars only have teeth on the outside. Turn them with <b>Angle</b>.'],
+      ['Shapes', 'Oval, Triangle and Square have two toothed edges, like the rings. Inside, only wheels small enough to get round the tightest curve fit; the others are greyed out, and Speira swaps a wheel that is too big for one that fits. Turn shapes with <b>Angle</b>.'],
+      ['Fixed wheel', 'Pin a wheel of any size to the paper and roll another wheel round it. Pick the pinned wheel\'s size under <b>Fixed wheel</b>.'],
+      ['Wheels', 'Eighteen wheels from 24 to 84 teeth. Bigger wheels make fewer, larger loops.'],
+      ['Pen hole', 'Holes near the edge of the wheel make big, loopy patterns; holes near the middle make gentle waves. You can also click a hole on the wheel itself.'],
+      ['Start shift and Auto shift', '<b>Start shift</b> starts the pattern a few teeth further round, so the next pass sits between the last one. <b>Auto shift</b> does that for you every time you start a new layer.'],
+      ['Kit size', 'Makes every piece bigger or smaller together. It changes how big the pattern is, not its shape.'],
+      ['Moving the piece', '<b>Move ring</b> (or hold <kbd>Alt</kbd> and drag) moves the piece on the paper; <b>Centre ring</b> puts it back in the middle.'],
+      ['Petals and laps', 'Under Draw you can see how many petals the pattern will have and after how many trips round it closes.']
+    ]
+  },
+  {
+    id: 'drawing', title: 'Drawing', summary: 'Rolling by hand, by keyboard and by itself.',
+    items: [
+      ['Speed', 'How fast the wheel turns when Speira draws for you.'],
+      ['Momentum', 'When on, a flick keeps the wheel rolling and slowing down on its own.'],
+      ['One-way', 'The wheel only ever rolls forwards, like a real pen that can\'t go back.'],
+      ['Lift the pen', 'Tick <b>Lift the pen</b> (or press <kbd>L</kbd>) to roll the wheel somewhere new without drawing. The pen tip looks hollow while it is lifted. Put it down and drawing carries on from there.'],
+      ['Roll with the keyboard', '<kbd>→</kbd> rolls one tooth forward, <kbd>←</kbd> one tooth back. Hold the key to keep rolling; add <kbd>⇧</kbd> for ten teeth at a time.'],
+      ['Tooth clicks', 'A soft click for every tooth, like the real kit. Set the volume or mute them in the Draw card.'],
+      ['Preview', 'The dashed-circle button (or <kbd>G</kbd>) shows a faint outline of the whole pattern before you draw it. Lit means on; crossed out means off.'],
+      ['Pieces', 'The eye button (or <kbd>H</kbd>) shows or hides the ring and wheel so you can see the drawing clearly. They hide themselves when a pattern is finished and come back when you start again.']
+    ]
+  },
+  {
+    id: 'pens', title: 'Pens and colour', summary: 'Eight pens, rainbow ink and a warning when ink won\'t show.',
+    items: [
+      ['Pen types', '<b>Ballpoint</b>, <b>Gel</b> (with a little shine), <b>Fineliner</b>, <b>Felt-tip</b> (darker where lines cross), <b>Highlighter</b>, <b>Metallic</b> (shimmers as the line turns), <b>Glitter</b> and <b>Pencil</b>.'],
+      ['Colour', 'Pick a swatch or any colour with Custom colour. Changing the pen after you have paused starts a new pass right where the wheel is, like swapping pens without moving the pieces.'],
+      ['Rainbow ink', 'The colour shifts along the line, starting from your pen colour.'],
+      ['Thickness and opacity', 'Make the line bolder or finer, more solid or more see-through.'],
+      ['Invisible ink warning', 'If the ink would barely show on your paper, a warning appears in the Pen section with a suggested ink that will show. Click it to switch.']
+    ]
+  },
+  {
+    id: 'paper', title: 'Paper', summary: 'Sizes, colours and textures.',
+    items: [
+      ['Size', 'Square, A5, A4, A3, US Letter, phone and desktop wallpapers, Instagram sizes, or a custom size in millimetres, inches or pixels. Pieces stay their real size, so a bigger sheet has more room.'],
+      ['Print resolution', 'Choose the DPI for printing; it sets how many pixels a PNG or JPG has.'],
+      ['Turn the sheet', 'Swap portrait and landscape. Drawings stay centred when the sheet changes.'],
+      ['Colour and texture', 'White, cream, kraft, black, navy, slate or any colour, plus grain, watercolour or kraft texture.']
+    ]
+  },
+  {
+    id: 'layers', title: 'Layers and recipes', summary: 'Every pass is a layer you can change later.',
+    items: [
+      ['Edit a layer', 'In Layers, press the pencil on a layer to change its pen, colour, thickness, opacity or rainbow ink. The other layers fade while you edit so you can see it.'],
+      ['Reorder', 'Drag a layer by its handle to put it above or below the others.'],
+      ['Hide and delete', 'The eye hides a layer; the bin deletes it. <b>Clear paper</b> removes everything (you can undo it).'],
+      ['Draw it again', 'In a layer\'s editor, <b>Draw it again</b> sets up your next pass exactly like that layer.'],
+      ['Recipes', '<b>Copy recipe</b> puts a layer\'s exact pieces and pen on the clipboard as a line of text and a code, to keep or share. <b>Paste recipe</b> (or <kbd>⌘</kbd><kbd>V</kbd> anywhere) sets you up from one.']
+    ]
+  },
+  {
+    id: 'view', title: 'Zoom and full screen', summary: 'Get close to the detail.',
+    items: [
+      ['Zoom', 'Pinch on a trackpad or screen, use <kbd>⌘</kbd><kbd>+</kbd> and <kbd>⌘</kbd><kbd>−</kbd>, or the buttons at the top left of the paper.'],
+      ['Move around', 'Scroll with two fingers, or drag with the middle mouse button.'],
+      ['Fit and actual size', '<kbd>⌘</kbd><kbd>0</kbd> (or Fit) shows the whole sheet; <kbd>⌘</kbd><kbd>1</kbd> shows it at real size.'],
+      ['Full screen', 'The corners button (or <kbd>⌃</kbd><kbd>⌘</kbd><kbd>F</kbd>) shows just the paper. <kbd>Esc</kbd> comes back.']
+    ]
+  },
+  {
+    id: 'export', title: 'Saving your picture', summary: 'PNG, JPG, SVG and video.',
+    items: [
+      ['Export', 'Press <b>Export</b> (or <kbd>⌘</kbd><kbd>E</kbd>) and pick a format. <kbd>⌘</kbd><kbd>S</kbd> saves again with the same settings.'],
+      ['PNG and JPG', 'Pictures at your paper\'s size. PNG can have a see-through background; JPG is smaller.'],
+      ['SVG', '<b>With pen effects</b> looks like the screen. <b>Plain lines</b> gives one clean line per layer, best for design apps, pen plotters and cutting machines.'],
+      ['Video', 'A video of your drawing making itself, every layer in order, 6 to 30 seconds long, optionally with the pieces turning. It records in real time, so keep the tab in front.'],
+      ['Your drawing is kept', 'Speira keeps your current drawing in this browser automatically. Saving several drawings in a sketchbook is coming.']
+    ]
+  },
+  {
+    id: 'watch', title: 'Just watch', summary: 'Sit back while Speira draws by itself.',
+    items: [
+      ['Start', 'Press <b>Watch</b> (or <kbd>W</kbd>). Speira fills the screen and composes patterns on its own, forever.'],
+      ['Layers come and go', 'Up to six layers build up (fewer if you choose), then the oldest fades as each new one starts.'],
+      ['Controls', 'Move the mouse to see them: speed, colour mood, rainbow ink, show the pieces, layers on screen, click volume, pause, next layer and leave.'],
+      ['Keys', '<kbd>Space</kbd> pause · <kbd>→</kbd> next layer · <kbd>R</kbd> rainbow · <kbd>P</kbd> pieces · <kbd>K</kbd> keep · <kbd>M</kbd> mute · <kbd>Esc</kbd> leave.'],
+      ['Roll it yourself', 'Drag in circles to turn the wheel; let go and Speira carries on.'],
+      ['Keep', '<b>Keep</b> turns what is on screen into your drawing, on black paper. <kbd>⌘</kbd><kbd>Z</kbd> brings back what you had before.'],
+      ['Session code', 'Every session has a six-letter code. Type a code and press Enter to replay that session with the same colour setting.'],
+      ['Bedtime', '<b>Sleep</b> fades the picture and the clicks to black after 30, 60 or 90 minutes, then rests.']
+    ]
+  },
+  {
+    id: 'look', title: 'Light and dark', summary: 'Choose how Speira looks.',
+    items: [
+      ['Theme', 'The sun and moon at the top switch between light and dark. Speira starts with your device\'s setting and then remembers your choice. Your paper colour never changes with it.']
+    ]
+  },
+  {
+    id: 'touch', title: 'iPad and touch', summary: 'Fingers and Apple Pencil.',
+    items: [
+      ['Two fingers never draw', 'Pinch to zoom and drag with two fingers to move around. A second finger stops the roll and takes back anything it drew.'],
+      ['Apple Pencil', 'While the Pencil is on or near the screen, your resting hand is ignored.'],
+      ['Bigger targets', 'Buttons and sliders grow on touch screens so they are easy to hit.']
+    ]
+  },
+  {
+    id: 'keys', title: 'All keyboard shortcuts', summary: 'Everything in one list.',
+    items: [
+      ['Drawing', '<kbd>Space</kbd> draw / pause · <kbd>Enter</kbd> new layer · <kbd>F</kbd> finish · <kbd>←</kbd><kbd>→</kbd> roll a tooth (<kbd>⇧</kbd> for ten) · <kbd>L</kbd> lift the pen'],
+      ['Pieces and pen', '<kbd>[</kbd> <kbd>]</kbd> previous / next pen hole · <kbd>,</kbd> <kbd>.</kbd> start shift back / forward · <kbd>H</kbd> pieces · <kbd>G</kbd> preview'],
+      ['View', '<kbd>⌘</kbd><kbd>+</kbd> / <kbd>⌘</kbd><kbd>−</kbd> zoom · <kbd>⌘</kbd><kbd>0</kbd> fit · <kbd>⌘</kbd><kbd>1</kbd> actual size · <kbd>⌃</kbd><kbd>⌘</kbd><kbd>F</kbd> full screen'],
+      ['Files', '<kbd>⌘</kbd><kbd>E</kbd> export · <kbd>⌘</kbd><kbd>S</kbd> export again · <kbd>⌘</kbd><kbd>Z</kbd> undo · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>Z</kbd> redo · <kbd>⌘</kbd><kbd>V</kbd> paste a recipe'],
+      ['Elsewhere', '<kbd>W</kbd> Just watch · <kbd>?</kbd> this Help']
+    ]
+  }
+];
+if (typeof module !== 'undefined') module.exports = { HELP };

@@ -2,7 +2,7 @@
 /* Layout: a maker's desk — the paper as the bright centre of the stage, a tool panel on the right.
    Two themes (sun / moon in the header) using the colours of Sam's cram book; the paper colour is always the user's.
    Light is the base; html[data-theme="dark"] swaps the tokens. */
-@font-face { font-family: "Cinzel"; src: local("Cinzel"), url("fonts/Cinzel-VariableFont_wght.ttf") format("truetype"); font-weight: 400 900; font-display: swap; }
+@font-face { font-family: "Cinzel"; src: local("Cinzel"), url("fonts/Cinzel/Cinzel-VariableFont_wght.ttf") format("truetype"); font-weight: 400 900; font-display: swap; }
 :root {
   --desk: #f5f6f2;
   --desk-2: #eceee8;
@@ -321,3 +321,25 @@ input[type=number], input[type=text] { -webkit-user-select: text; user-select: t
 .stagebtn.round svg { width: 20px; height: 20px; }
 .stepper .ico { border-color: var(--line); background: var(--chip); color: var(--text); }
 .chip:disabled { opacity: .35; cursor: default; }
+
+/* ---------- Help ---------- */
+.helpwrap { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 24px; background: rgba(10, 12, 16, .45); }
+.helppanel { width: min(960px, 100%); height: min(760px, 100%); display: flex; flex-direction: column; border-radius: 18px; border: 1px solid var(--line); background: var(--card); box-shadow: 0 30px 80px var(--shadow); overflow: hidden; }
+.helphead { display: flex; align-items: center; gap: 12px; padding: 16px 16px 14px 22px; border-bottom: 1px solid var(--line); }
+.helphead h2 { margin: 0; flex: 1; font: 700 18px var(--round); }
+.helphead input { width: min(280px, 40vw); height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--desk); color: var(--text); font: 14px var(--ui); }
+.helpcols { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); }
+.helpnavs { overflow-y: auto; padding: 12px; border-right: 1px solid var(--line); background: var(--desk-2); display: flex; flex-direction: column; gap: 2px; }
+.helpnav { text-align: left; padding: 9px 12px; border: 0; border-radius: 9px; background: none; color: var(--dim); font: 600 13px var(--ui); cursor: pointer; }
+.helpnav:hover { background: var(--hover); color: var(--text); }
+.helpnav[aria-current="true"] { background: var(--accent-soft); color: var(--accent); }
+.helpbody { overflow-y: auto; padding: 8px 28px 40px; scroll-padding-top: 12px; }
+.helpsec { padding-top: 18px; }
+.helpsec h3 { margin: 0; font: 700 20px var(--round); }
+.helpsum { margin: 4px 0 10px; color: var(--dim); font-size: 14px; }
+.helpitem { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.helpitem h4 { margin: 0 0 3px; font: 600 14px var(--ui); }
+.helpitem p { margin: 0; color: var(--dim); font-size: 14px; line-height: 1.55; max-width: 68ch; }
+.helpitem b { color: var(--text); }
+.helpnone { color: var(--dim); padding-top: 24px; }
+@media (max-width: 700px) { .helpcols { grid-template-columns: 1fr; } .helpnavs { display: none; } }

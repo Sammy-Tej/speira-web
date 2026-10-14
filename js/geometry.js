@@ -25,12 +25,19 @@ const SHAPES = [
   { id: 'sq120', kind: 'shape', shape: 'poly', sides: 4, name: 'Square', teeth: 120 }
 ];
 // Every piece the wheel can roll against. A layer's `ring` is an index into this list (rings first, so old drawings still work).
-const PIECES = [...RINGS.map(r => ({ kind: 'ring', ...r })), ...BARS, ...SHAPES];
+// A shaped ring has two toothed edges, like the round rings: the outer edge (`teeth`) and an inner edge
+// SHAPE_GAP teeth smaller, running parallel to it on the inside. The wheel rolls round the outer edge or inside the inner one.
+const SHAPE_GAP = 24;
+// Wheel on wheel: a wheel pinned to the paper (any size from the wheel set, chosen per layer as `base`),
+// with the drawing wheel rolling round its outside.
+const PIECES = [...RINGS.map(r => ({ kind: 'ring', ...r })), ...BARS, ...SHAPES, { id: 'base', kind: 'base', name: 'Wheel' }];
 const barTeeth = b => 2 * b.straight + 2 * b.end;
-const pieceName = i => { const pc = PIECES[i]; return pc.kind === 'bar' ? `Bar ${barTeeth(pc)}` : pc.kind === 'shape' ? `${pc.name} ${pc.teeth}` : `${pc.inner} / ${pc.outer}`; };
+const pieceName = i => { const pc = PIECES[i]; return pc.kind === 'base' ? 'Fixed wheel' : pc.kind === 'bar' ? `Bar ${barTeeth(pc)}` : pc.kind === 'shape' ? `${pc.name} ${pc.teeth - SHAPE_GAP} / ${pc.teeth}` : `${pc.inner} / ${pc.outer}`; };
 const isBar = L => PIECES[L.ring] && PIECES[L.ring].kind === 'bar';
 const isShape = L => PIECES[L.ring] && PIECES[L.ring].kind === 'shape';
-const isTrack = L => isBar(L) || isShape(L);   // anything that isn't a plain round ring (it can be turned to an angle)
+const isTrack = L => isBar(L) || isShape(L);
+const isBase = L => PIECES[L.ring] && PIECES[L.ring].kind === 'base';
+const outsideOnly = L => isBar(L) || isBase(L);   // pieces with teeth only on their outside   // anything that isn't a plain round ring (it can be turned to an angle)
 
 const TAU = Math.PI * 2;
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
@@ -50,7 +57,7 @@ function holesFor(teeth, pitch) {
 function geom(L) {
   if (isBar(L)) return geomBar(L);
   if (isShape(L)) return geomShape(L);
-  const ring = RINGS[L.ring], inside = L.mode === 'inside';
+  const base = isBase(L), ring = base ? { inner: 0, outer: L.base || 60, base: true } : RINGS[L.ring], inside = !base && L.mode === 'inside';
   const T = inside ? ring.inner : ring.outer, t = L.wheel, p = L.pitch;
   const Rr = radiusOf(T, p), rr = radiusOf(t, p);
   const holes = holesFor(t, p), hole = clampN(L.hole, 0, holes.length - 1), h = holes[hole];
@@ -98,38 +105,45 @@ function barPoint(B, cx, cy, s) {
 }
 // A shaped ring's pitch line as a chain of arcs and straight sides, scaled so its length is exactly teeth × pitch.
 // Each segment knows where its outward normal points (ψ), which only ever increases going round: the shape is convex.
-function shapeSegments(pc, p) {
+function shapeSegments(pc, p, off = 0) {
   const segs = [];
   if (pc.shape === 'oval') {
     // a four-arc oval: gentle arcs top and bottom, tighter arcs at the ends, meeting smoothly
     const al = .7, k = 2.6, dd = k - 1;   // half-angle of the end arcs, big/small radius ratio
     const e = dd * Math.cos(al), f = dd * Math.sin(al), per = 4 * al + 2 * (Math.PI - 2 * al) * k, sc = pc.teeth * p / per;
     const rb = sc, ra = k * sc;
-    segs.push({ arc: true, x: e * sc, y: 0, r: rb, a0: -al, a1: al });
-    segs.push({ arc: true, x: 0, y: -f * sc, r: ra, a0: al, a1: Math.PI - al });
-    segs.push({ arc: true, x: -e * sc, y: 0, r: rb, a0: Math.PI - al, a1: Math.PI + al });
-    segs.push({ arc: true, x: 0, y: f * sc, r: ra, a0: Math.PI + al, a1: TAU - al });
-    return { segs, minR: rb };
+    segs.push({ arc: true, x: e * sc, y: 0, r: rb + off, a0: -al, a1: al });
+    segs.push({ arc: true, x: 0, y: -f * sc, r: ra + off, a0: al, a1: Math.PI - al });
+    segs.push({ arc: true, x: -e * sc, y: 0, r: rb + off, a0: Math.PI - al, a1: Math.PI + al });
+    segs.push({ arc: true, x: 0, y: f * sc, r: ra + off, a0: Math.PI + al, a1: TAU - al });
+    return { segs, minR: rb + off };
   }
   // rounded polygon: corner arcs centred on a smaller polygon, joined by straight sides; a point faces up
   const n = pc.sides, rcRatio = .55, side = 1, rc = rcRatio * side, R0 = side / (2 * Math.sin(Math.PI / n));
   const sc = pc.teeth * p / (n * side + TAU * rc);
   for (let i = 0; i < n; i++) {
     const th = -Math.PI / 2 + i * TAU / n, cx = R0 * sc * Math.cos(th), cy = R0 * sc * Math.sin(th);
-    segs.push({ arc: true, x: cx, y: cy, r: rc * sc, a0: th - Math.PI / n, a1: th + Math.PI / n });
+    segs.push({ arc: true, x: cx, y: cy, r: rc * sc + off, a0: th - Math.PI / n, a1: th + Math.PI / n });
     const psi = th + Math.PI / n;
-    segs.push({ arc: false, x: cx + rc * sc * Math.cos(psi), y: cy + rc * sc * Math.sin(psi), psi, len: side * sc });
+    segs.push({ arc: false, x: cx + (rc * sc + off) * Math.cos(psi), y: cy + (rc * sc + off) * Math.sin(psi), psi, len: side * sc });
   }
-  return { segs, minR: rc * sc };
+  return { segs, minR: rc * sc + off };
+}
+// one edge of a shaped ring, ready to roll along: offset 0 = the outer edge, -shapeInset(p) = the inner edge.
+// Moving a convex edge inwards by w shortens it by exactly 2πw, so the inner edge has exactly SHAPE_GAP fewer teeth.
+const shapeInset = p => SHAPE_GAP * p / TAU;
+function shapeTrack(pc, p, off, ang) {
+  const { segs, minR } = shapeSegments(pc, p, off);
+  let acc = 0; for (const g of segs) { g.len = g.arc ? g.r * (g.a1 - g.a0) : g.len; g.s0 = acc; acc += g.len; }
+  return { segs, Lp: acc, ang, ca: Math.cos(ang), sa: Math.sin(ang), minR };
 }
 function geomShape(L) {
-  const pc = PIECES[L.ring], T = pc.teeth, t = L.wheel, p = L.pitch, inside = L.mode === 'inside';
-  const { segs, minR } = shapeSegments(pc, p), ang = ((L.angle || 0) * Math.PI) / 180;
-  let acc = 0; for (const g of segs) { g.len = g.arc ? g.r * (g.a1 - g.a0) : g.len; g.s0 = acc; acc += g.len; }
+  const pc = PIECES[L.ring], inside = L.mode === 'inside', T = inside ? pc.teeth - SHAPE_GAP : pc.teeth, t = L.wheel, p = L.pitch;
+  const ang = ((L.angle || 0) * Math.PI) / 180, K = shapeTrack(pc, p, inside ? -shapeInset(p) : 0, ang), { segs, minR } = K;
   const rr = radiusOf(t, p), holes = holesFor(t, p), hole = clampN(L.hole, 0, holes.length - 1), h = holes[hole], G = gcd(T, t);
   const far = Math.max(...segs.map(g => Math.hypot(g.x, g.y) + (g.arc ? g.r : 0)));
   return {
-    ring: pc, track: { segs, Lp: acc, ang, ca: Math.cos(ang), sa: Math.sin(ang), minR }, inside, fits: !inside || rr < minR * .98,
+    ring: pc, track: K, inside, fits: !inside || rr < minR * .98,
     T, t, p, Rr: far, rr, holes, hole, d: h.d, a: h.a,
     c: far + (inside ? -rr : rr), ratio: inside ? -(T - t) / t : (T + t) / t,
     total: (TAU * t) / G, petals: T / G, laps: t / G, rot: (TAU * L.shift) / T
@@ -187,4 +201,4 @@ function* rangeIdx(tr, a, b) {
   for (let i = i0; i <= i1; i++) yield ((i % N) + N) % N;
 }
 
-if (typeof module !== 'undefined') module.exports = { PAPER, RINGS, BARS, SHAPES, PIECES, pieceName, isBar, isShape, isTrack, trackPoint, WHEELS, TAU, gcd, radiusOf, holesFor, geom, wheelAt, trace, rangeIdx };
+if (typeof module !== 'undefined') module.exports = { isBase, outsideOnly, PAPER, RINGS, BARS, SHAPES, SHAPE_GAP, shapeTrack, shapeInset, PIECES, pieceName, isBar, isShape, isTrack, trackPoint, WHEELS, TAU, gcd, radiusOf, holesFor, geom, wheelAt, trace, rangeIdx };
