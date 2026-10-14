@@ -11,6 +11,7 @@ const S = { angle: 0, base: 60, ring: 1, mode: 'inside', wheel: 52, hole: 4, shi
 const P = { bg: '#ffffff', stencil: true, autoHide: true, ghost: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic', paper: { ...DEFAULT_PAPER }, svgMode: 'effects', exportFmt: 'png', jpgQ: .9, vidLen: 12, vidSize: 1080, vidPieces: false, folds: { pieces: true, pen: false, paper: false, layers: false } };
 const PW = () => paperWorld(P.paper)[0], PH = () => paperWorld(P.paper)[1];
 let layers = [], cur = null, playing = false, uid = 1;
+let rpQueue = [], rpN = 0;   // Repeat: passes still to draw, and how many there are in all
 let past = [], future = [];
 
 const newLayer = () => ({ id: uid++, ...S, a: 0, b: 0, pos: 0, visible: true });
@@ -19,7 +20,7 @@ const strip = L => { const { _tr, _key, _plan, _pk, _xy, ...rest } = L; return r
 // withBg: also remember the paper colour (only for steps that change it, like keeping a Just watch picture)
 const snapshot = (withBg = false) => JSON.stringify({ layers: layers.map(strip), cur: strip(cur), paper: P.paper, ...(withBg ? { bg: P.bg } : {}) });
 const hasBg = json => JSON.parse(json).bg != null;
-function restore(json) { const o = JSON.parse(json); layers = o.layers; cur = o.cur; if (o.bg) P.bg = o.bg; if (o.paper) { P.paper = o.paper; fit(); mainRing.key = ''; } uid = Math.max(uid, ...layers.map(l => l.id + 1), cur.id + 1); Object.assign(S, pickS(cur)); syncControls(); dirty(); }
+function restore(json) { rpQueue = []; rpN = 0; const o = JSON.parse(json); layers = o.layers; cur = o.cur; if (o.bg) P.bg = o.bg; if (o.paper) { P.paper = o.paper; fit(); mainRing.key = ''; } uid = Math.max(uid, ...layers.map(l => l.id + 1), cur.id + 1); Object.assign(S, pickS(cur)); syncControls(); dirty(); }
 const pickS = L => Object.fromEntries(Object.keys(S).map(k => [k, L[k]]));
 function remember(withBg = false) { past.push(snapshot(withBg)); if (past.length > 200) past.shift(); future = []; }
 function undo() { if (!past.length) return; const s = past.pop(); future.push(snapshot(hasBg(s))); restore(s); stop(); }
@@ -374,7 +375,8 @@ function advance(d) {
   cur.a = Math.min(cur.a, cur.pos); cur.b = Math.max(cur.b, cur.pos);
   if (cur.b - cur.a >= G.total) {
     cur.b = cur.a + G.total;
-    if (playing || coast) { stop(); coast = null; toast('Pattern complete — it closed after ' + G.laps + (G.laps === 1 ? ' lap' : ' laps')); if (P.autoHide && P.stencil) showPieces(false, true); }
+    if (playing && rpQueue.length) { layers.push(cur); nextQueued(); dirty(); return; }   // Repeat: on to the next pass
+    if (playing || coast) { stop(); coast = null; toast(rpN ? `All ${rpN} passes drawn. ⌘Z takes them all off.` : 'Pattern complete — it closed after ' + G.laps + (G.laps === 1 ? ' lap' : ' laps')); rpN = 0; if (P.autoHide && P.stencil) showPieces(false, true); }
   }
   readout(); save();
 }
@@ -389,7 +391,9 @@ function play() {
   playing = true; syncPlay();
 }
 function stop() { playing = false; coast = null; syncPlay(); }
-function finish() { stop(); if (penUp) setPen(false); remember(); const G = tr(cur).G; cur.b = cur.a + G.total; cur.pos = cur.b; readout(); save(); if (P.autoHide && P.stencil) showPieces(false, true); }
+function finish() {
+  if (rpQueue.length) { finishRepeat(); return; }
+  stop(); if (penUp) setPen(false); remember(); const G = tr(cur).G; cur.b = cur.a + G.total; cur.pos = cur.b; readout(); save(); if (P.autoHide && P.stencil) showPieces(false, true); }
 // Lift the pen: roll the wheel somewhere new without drawing, then put the pen down.
 // A layer is one unbroken line, so if the pen comes down away from what it already drew,
 // that pass is kept and a new one (same pieces and pen) starts right there.
@@ -410,7 +414,7 @@ function commit() {
   remember(); layers.push(cur); cur = null; return true;
 }
 function newLayerFromCurrent() {
-  stop();
+  stop(); rpQueue = []; rpN = 0;
   if (autoHidden) showPieces(true);
   if (commit()) { S.shift = (S.shift + S.autoShift) % 1000; }
   cur = newLayer(); syncControls(); dirty();
@@ -419,7 +423,7 @@ function newLayerFromCurrent() {
 // A pen-only change (keepPos) is like swapping pens with the wheel still in place: the new pass
 // carries on from where the wheel stopped instead of going back to the start tooth.
 function change(fn, keepPos = false) {
-  stop();
+  stop(); rpQueue = []; rpN = 0;
   const had = inked(cur), at = keepPos ? cur.pos : 0;
   fn(S);
   if (had) { commit(); cur = newLayer(); Object.assign(cur, { a: at, b: at, pos: at }); }
@@ -739,6 +743,60 @@ const speedFromSlider = v => +(0.05 * Math.pow(60, v / 100)).toFixed(3), sliderF
 bind('#speed', 'input', e => { P.speed = speedFromSlider(+e.target.value); $('#speedOut').textContent = P.speed.toFixed(2) + ' laps/s'; save(); });
 bind('#play', 'click', () => playing ? stop() : play());
 bind('#newLayer', 'click', newLayerFromCurrent);
+// ---------- repeat: the same pattern several times, a few teeth further round each time ----------
+// Each pass starts `step` teeth on round the piece. One petal of the pattern spans G teeth (G = how many teeth
+// the piece and wheel share), so "spread evenly" puts the copies G / times teeth apart.
+const RP = { times: 6, step: 2, mode: 'same' };
+const rpShare = () => { const G = geom(S); return Math.max(1, G.T / G.petals); };
+const rpEven = () => Math.max(1, Math.round(rpShare() / RP.times));
+function rpColours() {
+  const n = RP.times, base = S.color;
+  if (RP.mode === 'fade') return Array.from({ length: n }, (_, i) => mixHex(base, $('#rpFadeTo').value, n > 1 ? i / (n - 1) : 0));
+  if (RP.mode === 'rainbow') { const [h, s, l] = rgbHsl(...hexRgb(base)); return Array.from({ length: n }, (_, i) => hslHex(h + 360 * i / n, Math.max(.55, s), Math.min(.6, Math.max(.42, l)))); }
+  return Array(n).fill(base);
+}
+function syncRepeat() {
+  $('#rpTimes').value = RP.times; $('#rpTimesOut').textContent = RP.times;
+  $('#rpStepOut').textContent = RP.step + (RP.step === 1 ? ' tooth' : ' teeth');
+  $$('#rpColour [data-mode]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === RP.mode)));
+  $('#rpFadeRow').hidden = RP.mode !== 'fade';
+  const G = geom(S), deg = (360 * RP.step / G.T).toFixed(1).replace(/\.0$/, ''), even = rpEven();
+  $('#rpNote').textContent = `${RP.times} copies of this pattern, each starting ${RP.step} ${RP.step === 1 ? 'tooth' : 'teeth'} (${deg}°) further round.` + (RP.step === even ? ' They are spread evenly.' : ` Spread evenly would be ${even} apart.`);
+  $('#rpGo').textContent = `Draw ${RP.times} passes`;
+  fillRanges($('#repeatBox'));
+}
+function openRepeat(open) {
+  $('#repeatBox').hidden = !open; $('#repeatBtn').setAttribute('aria-expanded', String(open)); $('#repeatBtn').setAttribute('aria-pressed', String(open));
+  if (open) { RP.step = rpEven(); syncRepeat(); }
+}
+// the passes are queued and drawn one after another at the drawing speed; Space pauses, F finishes the rest at once
+function drawRepeat() {
+  stop(); if (autoHidden) showPieces(true); if (penUp) setPen(false); remember();
+  if (inked(cur)) layers.push(cur);
+  const G = geom(S), cols = rpColours();
+  rpQueue = cols.map((color, i) => ({ shift: ((S.shift + i * RP.step) % G.T + G.T) % G.T, color }));
+  rpN = rpQueue.length; nextQueued(); openRepeat(false);
+  playing = true; syncPlay(); syncControls(); dirty();
+}
+function nextQueued(quiet) {
+  const q = rpQueue.shift(); cur = newLayer(); cur.shift = q.shift; cur.color = q.color;
+  if (!quiet) toast(`Repeat: pass ${rpN - rpQueue.length} of ${rpN}`);
+}
+function finishRepeat() {
+  stop();
+  const done = L => { const t = tr(L).G.total; L.b = L.a + t; L.pos = L.b; layers.push(L); };
+  done(cur); while (rpQueue.length) { nextQueued(true); done(cur); }
+  cur = newLayer(); toast(`All ${rpN} passes drawn. ⌘Z takes them all off.`); rpN = 0;
+  dirty(); if (P.autoHide && P.stencil) showPieces(false, true);
+}
+bind('#repeatBtn', 'click', () => openRepeat($('#repeatBox').hidden));
+bind('#rpTimes', 'input', e => { RP.times = +e.target.value; syncRepeat(); });
+bind('#rpLess', 'click', () => { RP.step = Math.max(1, RP.step - 1); syncRepeat(); });
+bind('#rpMore', 'click', () => { RP.step = Math.min(geom(S).T - 1, RP.step + 1); syncRepeat(); });
+bind('#rpEven', 'click', () => { RP.step = rpEven(); syncRepeat(); });
+$$('#rpColour [data-mode]').forEach(b => b.addEventListener('click', () => { RP.mode = b.dataset.mode; syncRepeat(); }));
+bind('#rpGo', 'click', drawRepeat);
+bind('#rpCancel', 'click', () => openRepeat(false));
 bind('#penLift', 'change', e => { stop(); setPen(e.target.checked); });
 bind('#undo', 'click', undo); bind('#redo', 'click', redo);
 bind('#momentum', 'change', e => { P.momentum = e.target.checked; save(); });
@@ -1141,7 +1199,7 @@ function thumbnail(data = null, maxSide = 360) {
   return c.toDataURL('image/jpeg', .82);
 }
 function loadDoc(data, meta) {
-  stop(); coast = null; editId = null;
+  stop(); coast = null; editId = null; rpQueue = []; rpN = 0;
   layers = (data.layers || []).map(l => ({ ...l })); cur = data.cur ? { ...data.cur } : null;
   if (data.paper) P.paper = { ...DEFAULT_PAPER, ...data.paper }; if (data.bg) P.bg = data.bg;
   if (!cur) cur = newLayer();

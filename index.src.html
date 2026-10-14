@@ -163,6 +163,21 @@
       <div class="drawrow">
         <button class="btn primary" id="play" type="button"><svg><use href="#i-play"/></svg><span>Draw</span></button>
         <button class="btn" id="newLayer" type="button" title="Keep this pass and start a new one (Enter)"><svg><use href="#i-plus"/></svg>New layer</button>
+        <button class="btn" id="repeatBtn" type="button" aria-expanded="false" aria-controls="repeatBox" title="Draw this pattern several times, a few teeth apart"><svg><use href="#i-repeat"/></svg>Repeat</button>
+      </div>
+      <div class="repeatbox" id="repeatBox" hidden>
+        <label class="row"><span>Times</span><input type="range" id="rpTimes" min="2" max="36" step="1" value="6"><output id="rpTimesOut">6</output></label>
+        <div class="row"><span>Teeth apart</span>
+          <div class="stepper"><button class="ico" id="rpLess" type="button" aria-label="One tooth less">−</button><output id="rpStepOut">2</output><button class="ico" id="rpMore" type="button" aria-label="One tooth more">+</button></div><span></span></div>
+        <button class="btn sm rpeven" id="rpEven" type="button" title="Space the copies evenly round the pattern">Spread evenly</button>
+        <div class="field"><span class="lbl">Colour</span>
+          <div class="chips three" id="rpColour" role="group" aria-label="Colour">
+            <button type="button" class="chip" data-mode="same">Same</button><button type="button" class="chip" data-mode="fade">Fade to</button><button type="button" class="chip" data-mode="rainbow">Rainbow</button>
+          </div>
+          <label class="row" id="rpFadeRow" hidden><span>Fade to</span><input type="color" id="rpFadeTo" value="#e63946"><span></span></label>
+        </div>
+        <p class="rpnote" id="rpNote"></p>
+        <div class="btnrow"><button class="btn primary" id="rpGo" type="button">Draw 6 passes</button><button class="btn sm" id="rpCancel" type="button">Cancel</button></div>
       </div>
       <div class="prog"><div id="progress"></div></div>
       <div class="stats">

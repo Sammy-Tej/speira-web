@@ -32,6 +32,7 @@ const HELP = [
     id: 'drawing', title: 'Drawing', summary: 'Rolling by hand, by keyboard and by itself.',
     items: [
       ['Speed', 'How fast the wheel turns when Speira draws for you.'],
+      ['Repeat', 'Press <b>Repeat</b> to draw the same pattern several times, each one a few teeth further round. Choose how many, how many teeth apart (<b>Spread evenly</b> spaces them evenly round the pattern), and the colour: the same, fading to another colour, or stepping through a rainbow. Speira draws them one after another at your drawing speed: <kbd>Space</kbd> pauses, <kbd>F</kbd> finishes the rest at once, and one <kbd>⌘</kbd><kbd>Z</kbd> takes them all off.'],
       ['Momentum', 'When on, a flick keeps the wheel rolling and slowing down on its own.'],
       ['One-way', 'The wheel only ever rolls forwards, like a real pen that can\'t go back.'],
       ['Lift the pen', 'Tick <b>Lift the pen</b> (or press <kbd>L</kbd>) to roll the wheel somewhere new without drawing. The pen tip looks hollow while it is lifted. Put it down and drawing carries on from there.'],
