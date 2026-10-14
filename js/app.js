@@ -25,14 +25,32 @@ function remember(withBg = false) { past.push(snapshot(withBg)); if (past.length
 function undo() { if (!past.length) return; const s = past.pop(); future.push(snapshot(hasBg(s))); restore(s); stop(); }
 function redo() { if (!future.length) return; const s = future.pop(); past.push(snapshot(hasBg(s))); restore(s); stop(); }
 
+// ---------- the open drawing: its name and place in the Sketchbook, and whether it has unsaved changes ----------
+const two = n => String(n).padStart(2, '0');
+const ddmmyy = (d = new Date()) => `${two(d.getDate())}/${two(d.getMonth() + 1)}/${String(d.getFullYear()).slice(2)}`;
+const canvasName = () => `Canvas ${ddmmyy()}`;
+let doc = { id: null, name: canvasName(), folder: 'mine' }, savedHash = '';
+const docData = () => ({ layers: layers.map(strip), cur: strip(cur), paper: P.paper, bg: P.bg });
+const hashOf = str => { let h = 5381; for (let i = 0; i < str.length; i++) h = (Math.imul(h, 33) ^ str.charCodeAt(i)) >>> 0; return h.toString(36); };
+const docHash = () => hashOf(JSON.stringify(docData()));
+const isDirtyDoc = () => docHash() !== savedHash;
+function syncDocTitle() {
+  const n = $('#docName'); if (!n) return;
+  n.querySelector('span').textContent = doc.name; const d = isDirtyDoc();
+  n.classList.toggle('unsaved', d); n.title = d ? 'Not saved yet. Click to rename; ⌘S saves it to your Sketchbook' : 'Saved in your Sketchbook. Click to rename';
+  document.title = `${doc.name} · Speira`;
+}
+
+// keeps the working drawing in this browser between visits (separate from saving it into the Sketchbook)
 function save() {
   clearTimeout(save.t);
-  save.t = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify({ S, P, layers: layers.map(strip), cur: strip(cur) })); } catch {} }, 300);
+  save.t = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify({ S, P, layers: layers.map(strip), cur: strip(cur), doc, savedHash })); } catch {} }, 300);
 }
 function load() {
   try {
     const o = JSON.parse(localStorage.getItem(STORE) || 'null'); if (!o) return false;
     Object.assign(S, o.S); Object.assign(P, o.P); P.paper = { ...DEFAULT_PAPER, ...(o.P && o.P.paper) }; layers = o.layers || []; cur = o.cur || newLayer();
+    if (o.doc) doc = o.doc; if (o.savedHash) savedHash = o.savedHash;
     uid = Math.max(1, ...layers.map(l => l.id + 1), cur.id + 1); return true;
   } catch { return false; }
 }
@@ -61,7 +79,7 @@ const cv = $('#paper'), ctx = cv.getContext('2d');
 const ink = document.createElement('canvas'), ictx = ink.getContext('2d');
 const view = { s: 1, ox: 0, oy: 0, dpr: 1 };
 let inkDirty = true;
-const dirty = () => { inkDirty = true; save(); renderLayers(); readout(); };
+const dirty = () => { inkDirty = true; save(); renderLayers(); readout(); syncDocTitle(); };
 // camera on top of the fit: cam.z = zoom relative to "paper fits the window", cam.x/y = pan in device px
 const cam = { z: 1, x: 0, y: 0 };
 let fitS = 1;
@@ -1061,7 +1079,9 @@ addEventListener('keydown', e => {
   if (!(e.target instanceof Element) || e.target.matches('input[type=number], input[type=text]')) return;
   const mod = e.metaKey || e.ctrlKey;
   if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
-  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); exportNow(); return; }
+  if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); if (window.SpeiraBook) SpeiraBook.save(); return; }
+  if (mod && e.key.toLowerCase() === 'o') { e.preventDefault(); if (window.SpeiraBook) SpeiraBook.show(); return; }
+  if (mod && e.shiftKey && e.key.toLowerCase() === 'e') { e.preventDefault(); exportNow(); return; }
   if (mod && e.key.toLowerCase() === 'e') { e.preventDefault(); openExport(panel.hidden); return; }
   if (mod && (e.key === '=' || e.key === '+')) { e.preventDefault(); zoomBy(1.25); return; }
   if (mod && (e.key === '-' || e.key === '_')) { e.preventDefault(); zoomBy(.8); return; }
@@ -1094,16 +1114,51 @@ addEventListener('keydown', e => {
 
 // ---------- start ----------
 if (!load()) cur = newLayer();
+// a blank sheet that was never saved has nothing to lose, so it doesn't count as unsaved
+if (!savedHash && !layers.length && !inked(cur)) savedHash = docHash();
 syncControls(); fit(); dirty();
 requestAnimationFrame(frame);
 // Just watch "Keep": its layers become this drawing, on black paper, centred; one ⌘Z brings back what was here
-function adopt(list) {
-  stop(); remember(true);
+// Just watch "Keep": its layers, centred on this paper
+function watchLayers(list) {
   const dx = PW() / 2 - 500, dy = PH() / 2 - 500;
-  layers = list.map(L => ({ ...pickS({ ...S, ...L }), autoShift: 0, cx: L.cx + dx, cy: L.cy + dy, id: uid++, a: L.a, b: L.b, pos: L.b, visible: true }));
-  cur = newLayer(); P.bg = '#000000';
+  return list.map(L => ({ ...pickS({ ...S, ...L }), autoShift: 0, cx: L.cx + dx, cy: L.cy + dy, id: uid++, a: L.a, b: L.b, pos: L.b, visible: true }));
+}
+// keep, option 1: add them to this canvas as new layers on top (one ⌘Z takes them off again)
+function adoptAdd(list) { stop(); remember(); layers = [...layers, ...(inked(cur) ? [cur] : []), ...watchLayers(list)]; cur = newLayer(); syncControls(); dirty(); }
+// keep, option 2: a drawing of its own on black paper, for the Sketchbook to save
+const watchDoc = list => ({ layers: watchLayers(list), cur: strip(newLayer()), paper: P.paper, bg: '#000000' });
+
+// ---------- opening, starting and saving drawings (the Sketchbook calls these) ----------
+// a small picture of the drawing for the Sketchbook grid; works for the open drawing or any saved one
+function thumbnail(data = null, maxSide = 360) {
+  const paper = data ? { ...DEFAULT_PAPER, ...data.paper } : P.paper, [W, H] = paperWorld(paper), k = maxSide / Math.max(W, H);
+  const c = document.createElement('canvas'); c.width = Math.round(W * k); c.height = Math.round(H * k);
+  const x = c.getContext('2d'); x.scale(k, k); x.fillStyle = data ? data.bg : P.bg; x.fillRect(0, 0, W, H);
+  const list = data ? [...data.layers.filter(l => l.visible), data.cur].filter(inked) : visibleInk();
+  const light = luminance(data ? data.bg : P.bg) > .5;
+  for (const L of list) { const t = trace(L), xy = []; for (const i of rangeIdx(t, L.a, L.b)) xy.push(t.pts[i * 2], t.pts[i * 2 + 1]); drawPlan(x, buildPlan({ ...L, width: Math.max(L.width, 1.1 / k) }, xy, light, t.N / t.G.laps), L.opacity); }
+  return c.toDataURL('image/jpeg', .82);
+}
+function loadDoc(data, meta) {
+  stop(); coast = null; editId = null;
+  layers = (data.layers || []).map(l => ({ ...l })); cur = data.cur ? { ...data.cur } : null;
+  if (data.paper) P.paper = { ...DEFAULT_PAPER, ...data.paper }; if (data.bg) P.bg = data.bg;
+  if (!cur) cur = newLayer();
+  uid = Math.max(uid, ...layers.map(l => l.id + 1), cur.id + 1);
+  Object.assign(S, pickS(cur)); past = []; future = [];
+  doc = { ...meta }; savedHash = docHash();
+  cam.z = 1; cam.x = cam.y = 0; fit(); mainRing.key = '';
   syncControls(); dirty();
 }
+// a fresh sheet: same paper and pieces as now, nothing drawn yet
+const newDoc = folder => loadDoc({ layers: [], paper: P.paper, bg: P.bg }, { id: null, name: canvasName(), folder: folder || 'mine' });
+function markSaved(meta) { doc = { ...meta }; savedHash = docHash(); syncDocTitle(); save(); }
+function renameDoc(name) { doc.name = name; syncDocTitle(); save(); }
+const setDocFolder = folder => { doc.folder = folder; save(); };
+// the open drawing was deleted from the Sketchbook: it stays open, as an unsaved copy
+function detachDoc() { doc.id = null; savedHash = ''; syncDocTitle(); save(); }
 window.SpiroLab = { get layers() { return layers; }, get cur() { return cur; }, S, P, exportSVG, exportPNG, finish, newLayerFromCurrent, change,
-  adopt, ringCache, drawPieces: (c, L, v, ring) => drawStencil(c, L, v, ring, false) };
+  adoptAdd, watchDoc, ringCache, drawPieces: (c, L, v, ring) => drawStencil(c, L, v, ring, false),
+  get doc() { return doc; }, docData, isDirtyDoc, thumbnail, loadDoc, newDoc, markSaved, renameDoc, setDocFolder, detachDoc, canvasName, toast: (m, bad) => toast(m, bad) };
 })();

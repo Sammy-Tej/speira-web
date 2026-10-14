@@ -80,13 +80,26 @@ const HELP = [
     ]
   },
   {
-    id: 'export', title: 'Saving your picture', summary: 'PNG, JPG, SVG and video.',
+    id: 'book', title: 'Sketchbook and saving', summary: 'Keep as many drawings as you like, in folders.',
     items: [
-      ['Export', 'Press <b>Export</b> (or <kbd>⌘</kbd><kbd>E</kbd>) and pick a format. <kbd>⌘</kbd><kbd>S</kbd> saves again with the same settings.'],
+      ['Save', 'Press <b>Save</b> (or <kbd>⌘</kbd><kbd>S</kbd>) to keep the drawing in your Sketchbook. A dot next to its name at the top means it has changes you haven\'t saved yet.'],
+      ['Names', 'New drawings are called <b>Canvas</b> and the date, like Canvas 14/10/26; a second one that day becomes Canvas 14/10/26 2. Click the name at the top to rename it.'],
+      ['The Sketchbook', 'Press <b>Sketchbook</b> (or <kbd>⌘</kbd><kbd>O</kbd>) to see all your drawings. Click one to open it. If the drawing you\'re leaving has unsaved changes, Speira asks whether to save it first.'],
+      ['A fresh sheet', '<b>New canvas</b> in the Sketchbook starts a blank drawing with the same paper and pieces.'],
+      ['Folders', '<b>My drawings</b> is where drawings go to start with. <b>My shapes</b> will hold shapes you make yourself (coming soon). Make your own with <b>New folder</b>, and move drawings with the <b>⋯</b> button on each one.'],
+      ['Rename, duplicate, delete', 'The <b>⋯</b> button on a drawing (or right-click) can rename it, make a copy, move it or delete it.'],
+      ['Recently deleted', 'Deleted drawings wait in <b>Recently deleted</b> for 30 days, so you can put them back. After that they are gone for good, or straight away if you press Delete now or Empty.'],
+      ['Speira files', '<b>Save as file</b> makes a small .speira file of a drawing, to move it to another computer or keep as a backup. <b>Open file</b>, or dragging a .speira file onto Speira, adds it to your Sketchbook and opens it.'],
+      ['Where drawings are kept', 'On the web, your Sketchbook lives in this browser on this device. Clearing the browser\'s website data deletes it, so save .speira files of drawings you love now and then. The iPad and Mac apps will keep everything in iCloud.']
+    ]
+  },
+  {
+    id: 'export', title: 'Exporting pictures and videos', summary: 'PNG, JPG, SVG and video.',
+    items: [
+      ['Export', 'Press <b>Export</b> (or <kbd>⌘</kbd><kbd>E</kbd>) and pick a format. <kbd>⇧</kbd><kbd>⌘</kbd><kbd>E</kbd> exports again with the same settings.'],
       ['PNG and JPG', 'Pictures at your paper\'s size. PNG can have a see-through background; JPG is smaller.'],
       ['SVG', '<b>With pen effects</b> looks like the screen. <b>Plain lines</b> gives one clean line per layer, best for design apps, pen plotters and cutting machines.'],
-      ['Video', 'A video of your drawing making itself, every layer in order, 6 to 30 seconds long, optionally with the pieces turning. It records in real time, so keep the tab in front.'],
-      ['Your drawing is kept', 'Speira keeps your current drawing in this browser automatically. Saving several drawings in a sketchbook is coming.']
+      ['Video', 'A video of your drawing making itself, every layer in order, 6 to 30 seconds long, optionally with the pieces turning. It records in real time, so keep the tab in front.']
     ]
   },
   {
@@ -97,7 +110,7 @@ const HELP = [
       ['Controls', 'Move the mouse to see them: speed, colour mood, rainbow ink, show the pieces, layers on screen, click volume, pause, next layer and leave.'],
       ['Keys', '<kbd>Space</kbd> pause · <kbd>→</kbd> next layer · <kbd>R</kbd> rainbow · <kbd>P</kbd> pieces · <kbd>K</kbd> keep · <kbd>M</kbd> mute · <kbd>Esc</kbd> leave.'],
       ['Roll it yourself', 'Drag in circles to turn the wheel; let go and Speira carries on.'],
-      ['Keep', '<b>Keep</b> turns what is on screen into your drawing, on black paper. <kbd>⌘</kbd><kbd>Z</kbd> brings back what you had before.'],
+      ['Keep', '<b>Keep</b> (or <kbd>K</kbd>) asks how to keep what is on screen: as <b>a new drawing in your Sketchbook</b> (on black paper), or as <b>new layers on your canvas</b> on top of what you were drawing (<kbd>⌘</kbd><kbd>Z</kbd> takes them off again).'],
       ['Session code', 'Every session has a six-letter code. Type a code and press Enter to replay that session with the same colour setting.'],
       ['Bedtime', '<b>Sleep</b> fades the picture and the clicks to black after 30, 60 or 90 minutes, then rests.']
     ]
@@ -122,7 +135,7 @@ const HELP = [
       ['Drawing', '<kbd>Space</kbd> draw / pause · <kbd>Enter</kbd> new layer · <kbd>F</kbd> finish · <kbd>←</kbd><kbd>→</kbd> roll a tooth (<kbd>⇧</kbd> for ten) · <kbd>L</kbd> lift the pen'],
       ['Pieces and pen', '<kbd>[</kbd> <kbd>]</kbd> previous / next pen hole · <kbd>,</kbd> <kbd>.</kbd> start shift back / forward · <kbd>H</kbd> pieces · <kbd>G</kbd> preview'],
       ['View', '<kbd>⌘</kbd><kbd>+</kbd> / <kbd>⌘</kbd><kbd>−</kbd> zoom · <kbd>⌘</kbd><kbd>0</kbd> fit · <kbd>⌘</kbd><kbd>1</kbd> actual size · <kbd>⌃</kbd><kbd>⌘</kbd><kbd>F</kbd> full screen'],
-      ['Files', '<kbd>⌘</kbd><kbd>E</kbd> export · <kbd>⌘</kbd><kbd>S</kbd> export again · <kbd>⌘</kbd><kbd>Z</kbd> undo · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>Z</kbd> redo · <kbd>⌘</kbd><kbd>V</kbd> paste a recipe'],
+      ['Files', '<kbd>⌘</kbd><kbd>S</kbd> save · <kbd>⌘</kbd><kbd>O</kbd> Sketchbook · <kbd>⌘</kbd><kbd>E</kbd> export · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>E</kbd> export again · <kbd>⌘</kbd><kbd>Z</kbd> undo · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>Z</kbd> redo · <kbd>⌘</kbd><kbd>V</kbd> paste a recipe'],
       ['Elsewhere', '<kbd>W</kbd> Just watch · <kbd>?</kbd> this Help']
     ]
   }

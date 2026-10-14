@@ -343,3 +343,54 @@ input[type=number], input[type=text] { -webkit-user-select: text; user-select: t
 .helpitem b { color: var(--text); }
 .helpnone { color: var(--dim); padding-top: 24px; }
 @media (max-width: 700px) { .helpcols { grid-template-columns: 1fr; } .helpnavs { display: none; } }
+.wkeep { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; gap: 10px; padding: 20px; border-radius: 18px; background: rgba(20, 22, 27, .92); border: 1px solid rgba(255, 255, 255, .12); min-width: 300px; z-index: 2; }
+.wkeep p { margin: 0 0 4px; color: var(--text); font: 600 15px var(--ui); text-align: center; }
+.wkeep .wtog { justify-content: center; height: 42px; font-size: 13px; color: var(--text); }
+
+/* ---------- the drawing's name in the header ---------- */
+.docname { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; height: 32px; padding: 0 10px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--dim); font: 600 13px var(--ui); cursor: text; }
+.docname span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.docname:hover { border-color: var(--line); color: var(--text); }
+.docname.unsaved::after { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; }
+.brename { height: 32px; padding: 0 8px; border: 1px solid var(--accent); border-radius: 8px; background: var(--card); color: var(--text); font: 600 13px var(--ui); min-width: 0; }
+.docrename { width: 200px; }
+
+/* ---------- Sketchbook ---------- */
+.book { position: fixed; inset: 0; z-index: 85; display: grid; place-items: center; padding: 20px; background: rgba(10, 12, 16, .45); }
+.bookpanel { width: min(1180px, 100%); height: min(860px, 100%); display: flex; flex-direction: column; border-radius: 18px; border: 1px solid var(--line); background: var(--card); box-shadow: 0 30px 80px var(--shadow); overflow: hidden; }
+.bookbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 14px 22px; border-bottom: 1px solid var(--line); }
+.bookbar h2 { margin: 0; flex: 1; font: 700 18px var(--round); }
+.bookcols { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); }
+.bookside { overflow-y: auto; padding: 12px; border-right: 1px solid var(--line); background: var(--desk-2); display: flex; flex-direction: column; gap: 10px; }
+.bookside > div { display: flex; flex-direction: column; gap: 2px; }
+.bfolder { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border: 0; border-radius: 9px; background: none; color: var(--dim); font: 600 13px var(--ui); cursor: pointer; text-align: left; }
+.bfolder svg { width: 16px; height: 16px; }
+.bfolder span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bfolder small { color: var(--faint); font: 12px var(--mono); }
+.bfolder:hover { background: var(--hover); color: var(--text); }
+.bfolder[aria-current="true"] { background: var(--accent-soft); color: var(--accent); }
+.bfolder:last-child { margin-top: 8px; }
+.bookmain { overflow-y: auto; padding: 18px 22px 30px; display: flex; flex-direction: column; gap: 16px; }
+.bookhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.bookhead h3 { margin: 0; flex: 1; font: 700 20px var(--round); }
+.bnote { color: var(--faint); font-size: 12px; }
+.bookgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 18px; }
+.bcard { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 0; border: 0; background: none; text-align: left; color: var(--text); font: inherit; }
+.bthumb { display: grid; place-items: center; aspect-ratio: 1; width: 100%; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--desk); cursor: pointer; }
+.bthumb img { max-width: 100%; max-height: 100%; border-radius: 2px; box-shadow: 0 4px 14px var(--shadow); }
+.bnew .bthumb { border: 2px dashed var(--line-hi); color: var(--accent); background: transparent; }
+.bnew .bthumb svg { width: 34px; height: 34px; }
+.bcard.open .bthumb { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.bname { font: 600 14px var(--ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 30px; }
+.bdate { color: var(--faint); font-size: 12px; }
+.bmore { position: absolute; right: 0; bottom: 14px; }
+.bempty { grid-column: 1 / -1; color: var(--dim); margin: 0; max-width: 60ch; }
+.bookmenu { position: fixed; z-index: 95; min-width: 200px; padding: 6px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); box-shadow: 0 16px 40px var(--shadow); display: flex; flex-direction: column; }
+.bookmenu button { text-align: left; padding: 8px 12px; border: 0; border-radius: 8px; background: none; color: var(--text); font: 13px var(--ui); cursor: pointer; }
+.bookmenu button:hover, .bookmenu button:focus-visible { background: var(--hover); }
+.bookmenu button.danger { color: var(--danger); }
+.bookask { position: fixed; z-index: 96; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(400px, calc(100vw - 32px)); padding: 22px; border-radius: 16px; border: 1px solid var(--line); background: var(--card); box-shadow: 0 30px 80px var(--shadow); display: flex; flex-direction: column; gap: 8px; }
+.bookask h3 { margin: 0; font: 700 16px var(--round); }
+.bookask p { margin: 0 0 8px; color: var(--dim); font-size: 14px; line-height: 1.45; }
+.bookaskrow { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+@media (max-width: 700px) { .bookcols { grid-template-columns: 1fr; } .bookside { border-right: 0; border-bottom: 1px solid var(--line); max-height: 180px; } }

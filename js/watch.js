@@ -254,12 +254,18 @@ sleepBtn.addEventListener('click', () => {
 let toastT;
 function toast(msg) { const t = $('#wToast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 3200); }
 // keep: what's on screen becomes your drawing (finished layers plus the one drawing now)
-function keep() {
-  const list = [...finished, ...(cur && cur.drawn > 1 ? [cur] : [])].map(l => ({ ...l.L, a: 0, b: l.th }));
-  if (!list.length) return;
-  SpiroLab.adopt(list);
-  toast(`Kept ${list.length} layer${list.length > 1 ? 's' : ''} as your drawing, on black paper. ⌘Z there brings back what you had.`);
+// keep asks how: as a drawing of its own in the Sketchbook, or as new layers on top of the canvas you were drawing
+const keepAsk = $('#wKeepAsk');
+const keepList = () => [...finished, ...(cur && cur.drawn > 1 ? [cur] : [])].map(l => ({ ...l.L, a: 0, b: l.th }));
+function keep() { if (!keepList().length) return; keepAsk.hidden = false; wake(); keepAsk.querySelector('button').focus(); }
+async function keepAs(how) {
+  keepAsk.hidden = true;
+  const list = keepList(); if (!list.length) return;
+  const n = `${list.length} layer${list.length > 1 ? 's' : ''}`;
+  if (how === 'add') { SpiroLab.adoptAdd(list); toast(`Added ${n} to your canvas. ⌘Z there takes them off again.`); }
+  else { const name = await SpeiraBook.saveNew(SpiroLab.watchDoc(list)); toast(`Saved ${n} as “${name}” in My drawings`); }
 }
+keepAsk.querySelectorAll('[data-keep]').forEach(b => b.addEventListener('click', () => b.dataset.keep === 'cancel' ? (keepAsk.hidden = true) : keepAs(b.dataset.keep)));
 $('#wKeep').addEventListener('click', keep);
 // session code: copy it, or type one and press Enter to replay it
 const codeIn = $('#wCode');
