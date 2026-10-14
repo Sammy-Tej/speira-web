@@ -90,6 +90,7 @@
     </div>
   </div>
 </div>
+<div class="bookask docinfo" id="docInfo" role="dialog" aria-label="Drawing info" hidden><h3>Drawing info</h3><dl></dl><div class="bookaskrow"><button class="btn primary" type="button">Done</button></div></div>
 <div class="bookmenu" id="bookMenu" role="menu" hidden></div>
 <div class="bookask" id="bookAsk" role="alertdialog" aria-modal="true" hidden><h3></h3><p></p><div class="bookaskrow"></div></div>
 <input type="file" id="bookFileIn" accept=".speira,application/json" multiple hidden>
@@ -105,6 +106,10 @@
     <button class="ico" id="redo" type="button" title="Redo (⇧⌘Z)" aria-label="Redo"><svg><use href="#i-arrow-clockwise"/></svg></button>
   </div>
   <div class="export menuwrap">
+    <span class="menuwrap">
+      <button class="btn" id="viewBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="viewMenu" title="Zoom, rulers, guides, grid and more"><svg><use href="#i-ruler"/></svg>View</button>
+      <div class="viewmenu" id="viewMenu" role="menu" aria-label="View" hidden></div>
+    </span>
     <button class="btn" id="helpBtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="help" title="How to use Speira (?)"><svg><use href="#i-question"/></svg>Help</button>
     <div class="themesw" role="group" aria-label="Theme">
       <button type="button" data-theme-pick="light" aria-label="Light theme" title="Light"><svg><use href="#i-sun"/></svg></button>
@@ -146,6 +151,10 @@
       <button class="stagebtn round" id="ghostToggle" type="button" aria-pressed="true" aria-label="Preview on" title="Preview: a faint outline of the whole pattern before you draw it (G)"><svg><use href="#i-circle-dashed"/></svg></button>
       <button class="stagebtn round" id="pieceToggle" type="button" aria-pressed="true" aria-label="Pieces shown" title="Pieces: show or hide the ring and wheel (H)"><svg><use href="#i-eye"/></svg></button>
     </div>
+    <canvas class="ruler ruler-top" id="rulerTop" aria-label="Ruler: drag down onto the paper to make a guide"></canvas>
+    <canvas class="ruler ruler-left" id="rulerLeft" aria-label="Ruler: drag across onto the paper to make a guide"></canvas>
+    <div class="rulercorner" aria-hidden="true"></div>
+    <div class="infobar" id="infoBar" hidden></div>
     <div class="zoombar" role="group" aria-label="Zoom">
       <button class="zbtn" id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out (⌘−)"><svg><use href="#i-magnifying-glass-minus"/></svg></button>
       <button class="zbtn zpct" id="zoomPct" type="button" title="Fit the paper to the window (⌘0) · ⌘1 for actual size">Fit</button>
@@ -265,5 +274,6 @@
 <script src="js/help-content.js"></script>
 <script src="js/help.js"></script>
 <script src="js/book.js"></script>
+<script src="js/view.js"></script>
 </body>
 </html>

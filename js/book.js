@@ -271,5 +271,5 @@ $('#docName').addEventListener('click', () => {
   inp.addEventListener('blur', () => finish(true));
 });
 
-window.SpeiraBook = { show, hide, save, saveNew, newCanvas, ready: (async () => { db = await idb(); try { await loadAll(); } catch { db = null; await loadAll(); } await purgeOld(); })() };
+window.SpeiraBook = { show, hide, save, saveNew, newCanvas, info: id => items.get(id), ready: (async () => { db = await idb(); try { await loadAll(); } catch { db = null; await loadAll(); } await purgeOld(); })() };
 })();

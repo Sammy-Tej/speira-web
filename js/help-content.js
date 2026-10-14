@@ -72,11 +72,21 @@ const HELP = [
     ]
   },
   {
-    id: 'view', title: 'Zoom and full screen', summary: 'Get close to the detail.',
+    id: 'view', title: 'View, rulers and guides', summary: 'Zoom, turn the paper, and line things up exactly.',
     items: [
-      ['Zoom', 'Pinch on a trackpad or screen, use <kbd>⌘</kbd><kbd>+</kbd> and <kbd>⌘</kbd><kbd>−</kbd>, or the buttons at the top left of the paper.'],
-      ['Move around', 'Scroll with two fingers, or drag with the middle mouse button.'],
-      ['Fit and actual size', '<kbd>⌘</kbd><kbd>0</kbd> (or Fit) shows the whole sheet; <kbd>⌘</kbd><kbd>1</kbd> shows it at real size.'],
+      ['The View menu', 'Press <b>View</b> at the top for everything below. Your choices are remembered next time.'],
+      ['Zoom', 'Pinch on a trackpad or screen, use <kbd>⌘</kbd><kbd>+</kbd> and <kbd>⌘</kbd><kbd>−</kbd>, or the buttons at the top left of the paper. <kbd>⌘</kbd><kbd>0</kbd> fits the whole sheet; <kbd>⌘</kbd><kbd>1</kbd> shows it at real size.'],
+      ['Move around', 'Scroll with two fingers, or drag with the middle mouse button. <b>Auto-centre</b> puts the paper back in the middle when the window changes size.'],
+      ['Turn the paper', 'Twist two fingers on a trackpad or screen, or use the turn buttons in View. It clicks straight when close to upright or sideways. <b>Straighten</b> puts it back.'],
+      ['Rulers', '<kbd>⌃</kbd><kbd>⌘</kbd><kbd>R</kbd> shows rulers along the top and left, in your paper\'s units (mm, inches or pixels). They hide while the paper is turned.'],
+      ['Guides', 'Drag out of a ruler to make a guide. Drag a guide to move it, or back onto the ruler to remove it. View can also add centre guides, type a guide at an exact place, or clear them all. <kbd>⌘</kbd><kbd>;</kbd> shows or hides them; <kbd>⌥</kbd><kbd>⌘</kbd><kbd>;</kbd> locks them so they can\'t be moved by accident.'],
+      ['Saved guides', 'Type a name under <b>Saved guides</b> and press Save to keep the guides you have now. Pick it from the list on any drawing to bring them back.'],
+      ['Snapping', 'When you move a ring, it clicks to guides, the paper\'s edges and centre, and anything else that is showing (grid, thirds, margins). <kbd>⇧</kbd><kbd>⌘</kbd><kbd>;</kbd> turns snapping off. Hold <kbd>⌃</kbd> while dragging to move freely just this once.'],
+      ['Smart guides', 'Pink lines appear when the ring lines up with the centre of other pieces, so stencils sit neatly in a row.'],
+      ['Overlays', 'A grid (<kbd>⌘</kbd><kbd>\'</kbd>, with a choice of spacing), centre lines, a rule-of-thirds grid and print margins. They only show on screen and never in exports. <b>Overlays</b> hides them all at once.'],
+      ['Info bar', '<kbd>⌃</kbd><kbd>⌘</kbd><kbd>I</kbd> shows a strip with the paper size, zoom, angle and where the pointer is.'],
+      ['Clear the way', '<kbd>⌃</kbd><kbd>⌘</kbd><kbd>P</kbd> hides the side panel. <kbd>⌃</kbd><kbd>H</kbd> hides everything except the paper; <kbd>Esc</kbd> brings it all back.'],
+      ['Drawing info', '<b>Drawing info…</b> lists the name, paper, picture size, layers and pieces of the drawing.'],
       ['Full screen', 'The corners button (or <kbd>⌃</kbd><kbd>⌘</kbd><kbd>F</kbd>) shows just the paper. <kbd>Esc</kbd> comes back.']
     ]
   },
@@ -136,6 +146,8 @@ const HELP = [
       ['Drawing', '<kbd>Space</kbd> draw / pause · <kbd>Enter</kbd> new layer · <kbd>F</kbd> finish · <kbd>←</kbd><kbd>→</kbd> roll a tooth (<kbd>⇧</kbd> for ten) · <kbd>L</kbd> lift the pen'],
       ['Pieces and pen', '<kbd>[</kbd> <kbd>]</kbd> previous / next pen hole · <kbd>,</kbd> <kbd>.</kbd> start shift back / forward · <kbd>H</kbd> pieces · <kbd>G</kbd> preview'],
       ['View', '<kbd>⌘</kbd><kbd>+</kbd> / <kbd>⌘</kbd><kbd>−</kbd> zoom · <kbd>⌘</kbd><kbd>0</kbd> fit · <kbd>⌘</kbd><kbd>1</kbd> actual size · <kbd>⌃</kbd><kbd>⌘</kbd><kbd>F</kbd> full screen'],
+      ['Rulers and guides', '<kbd>⌃</kbd><kbd>⌘</kbd><kbd>R</kbd> rulers · <kbd>⌘</kbd><kbd>;</kbd> guides · <kbd>⌥</kbd><kbd>⌘</kbd><kbd>;</kbd> lock guides · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>;</kbd> snapping · <kbd>⌃</kbd> while dragging: no snapping · <kbd>⌘</kbd><kbd>\'</kbd> grid'],
+      ['Panels', '<kbd>⌃</kbd><kbd>⌘</kbd><kbd>I</kbd> info bar · <kbd>⌃</kbd><kbd>⌘</kbd><kbd>P</kbd> hide panel · <kbd>⌃</kbd><kbd>H</kbd> hide everything (<kbd>Esc</kbd> to bring back)'],
       ['Files', '<kbd>⌘</kbd><kbd>S</kbd> save · <kbd>⌘</kbd><kbd>O</kbd> Sketchbook · <kbd>⌘</kbd><kbd>E</kbd> export · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>E</kbd> export again · <kbd>⌘</kbd><kbd>Z</kbd> undo · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>Z</kbd> redo · <kbd>⌘</kbd><kbd>V</kbd> paste a recipe'],
       ['Elsewhere', '<kbd>W</kbd> Just watch · <kbd>?</kbd> this Help']
     ]

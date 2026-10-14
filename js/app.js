@@ -78,11 +78,11 @@ function strokeLayer(ctx, L) { if (inked(L)) drawPlan(ctx, planOf(L), L.opacity)
 // ---------- canvas & view ----------
 const cv = $('#paper'), ctx = cv.getContext('2d');
 const ink = document.createElement('canvas'), ictx = ink.getContext('2d');
-const view = { s: 1, ox: 0, oy: 0, dpr: 1 };
+const view = { s: 1, r: 0, ca: 1, sa: 0, ox: 0, oy: 0, dpr: 1 };
 let inkDirty = true;
 const dirty = () => { inkDirty = true; save(); renderLayers(); readout(); syncDocTitle(); };
 // camera on top of the fit: cam.z = zoom relative to "paper fits the window", cam.x/y = pan in device px
-const cam = { z: 1, x: 0, y: 0 };
+const cam = { z: 1, x: 0, y: 0, r: 0 };   // r: the view's rotation in radians (only how you look at it, never the drawing)
 let fitS = 1;
 function fit() {
   const r = cv.parentElement.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
@@ -93,11 +93,13 @@ function fit() {
   applyView();
 }
 function applyView() {
-  const W = PW(), H = PH(), s = fitS * cam.z, keep = 80 * view.dpr;
+  const W = PW(), H = PH(), s = fitS * cam.z, keep = 80 * view.dpr, ca = Math.cos(cam.r), sa = Math.sin(cam.r);
   // pan is limited so at least ~80px of paper always stays on screen
-  const lx = Math.max(0, (cv.width + W * s) / 2 - keep), ly = Math.max(0, (cv.height + H * s) / 2 - keep);
+  const ext = Math.hypot(W, H) * s, lx = Math.max(0, (cv.width + ext) / 2 - keep), ly = Math.max(0, (cv.height + ext) / 2 - keep);
   cam.x = clampN(cam.x, -lx, lx); cam.y = clampN(cam.y, -ly, ly);
-  Object.assign(view, { s, ox: (cv.width - W * s) / 2 + cam.x, oy: (cv.height - H * s) / 2 + cam.y });
+  // the paper's centre sits at the middle of the stage (plus any pan), turned by r
+  const cx = cv.width / 2 + cam.x, cy = cv.height / 2 + cam.y;
+  Object.assign(view, { s, r: cam.r, ca, sa, ox: cx - s * (ca * W / 2 - sa * H / 2), oy: cy - s * (sa * W / 2 + ca * H / 2) });
   inkDirty = true;
   const fitted = Math.abs(cam.z - 1) < .005 && Math.abs(cam.x) < 1 && Math.abs(cam.y) < 1;
   $('#zoomPct').textContent = fitted ? 'Fit' : Math.round(cam.z * 100) + '%';
@@ -106,35 +108,53 @@ function applyView() {
 function zoomTo(z, clientX, clientY) {
   const r = cv.getBoundingClientRect();
   const sx = ((clientX ?? r.left + r.width / 2) - r.left) * view.dpr, sy = ((clientY ?? r.top + r.height / 2) - r.top) * view.dpr;
-  const wx = (sx - view.ox) / view.s, wy = (sy - view.oy) / view.s;
+  const [wx, wy] = devToWorld(sx, sy);
   cam.z = clampN(z, .2, 32);
-  const s = fitS * cam.z;
-  cam.x = sx - wx * s - (cv.width - PW() * s) / 2; cam.y = sy - wy * s - (cv.height - PH() * s) / 2;
+  const s = fitS * cam.z, ca = Math.cos(cam.r), sa = Math.sin(cam.r), W = PW(), H = PH();
+  // the new origin keeps (wx, wy) under the pointer; the pan is whatever puts the paper's centre there
+  const ox = sx - s * (ca * wx - sa * wy), oy = sy - s * (sa * wx + ca * wy);
+  cam.x = ox + s * (ca * W / 2 - sa * H / 2) - cv.width / 2; cam.y = oy + s * (sa * W / 2 + ca * H / 2) - cv.height / 2;
   applyView();
 }
 const zoomBy = (f, x, y) => zoomTo(cam.z * f, x, y);
 const panBy = (dx, dy) => { cam.x += dx * view.dpr; cam.y += dy * view.dpr; applyView(); };
 function resetView() { cam.z = 1; cam.x = cam.y = 0; applyView(); }
+// turn the view about the paper's centre; settles on straight when it is within a few degrees of it
+function rotateTo(rad) {
+  let r = Math.atan2(Math.sin(rad), Math.cos(rad));
+  for (const q of [0, Math.PI / 2, Math.PI, -Math.PI / 2, -Math.PI]) if (Math.abs(r - q) < .06) r = q === -Math.PI ? Math.PI : q;
+  cam.r = r; mainRing.key = ''; applyView();
+}
 // actual size: real millimetres on screen (CSS 96 dpi), or one image pixel per screen point for pixel papers
 function actualSize() {
   const cssPerUnit = P.paper.unit === 'px' ? P.paper.w / PW() : 96 / 25.4 / MM;
   zoomTo(cssPerUnit * view.dpr / fitS); toast('Actual size');
 }
-new ResizeObserver(fit).observe(cv.parentElement);
-const toWorld = (cx_, cy_) => { const r = cv.getBoundingClientRect(); return [((cx_ - r.left) * view.dpr - view.ox) / view.s, ((cy_ - r.top) * view.dpr - view.oy) / view.s]; };
-const worldT = c => c.setTransform(view.s, 0, 0, view.s, view.ox, view.oy);
+// Auto-centre (View menu, on by default): when the window changes size the paper goes back to the middle
+new ResizeObserver(() => { if (P.autoCentre !== false) cam.x = cam.y = 0; fit(); }).observe(cv.parentElement);
+// paper (world) ⇄ screen. screen = origin + scale × rotation × world. A view without ca/sa (Just watch, video) is unrotated.
+const vT = (c, v = view) => { const ca = v.ca ?? 1, sa = v.sa ?? 0; c.setTransform(v.s * ca, v.s * sa, -v.s * sa, v.s * ca, v.ox, v.oy); };
+const invV = (v, x, y) => { const ca = v.ca ?? 1, sa = v.sa ?? 0, dx = x - v.ox, dy = y - v.oy; return [(ca * dx + sa * dy) / v.s, (-sa * dx + ca * dy) / v.s]; };
+const devToWorld = (x, y) => invV(view, x, y);
+const worldToDev = (wx, wy) => [view.ox + view.s * (view.ca * wx - view.sa * wy), view.oy + view.s * (view.sa * wx + view.ca * wy)];
+const toWorld = (cx_, cy_) => { const r = cv.getBoundingClientRect(); return devToWorld((cx_ - r.left) * view.dpr, (cy_ - r.top) * view.dpr); };
+const worldT = c => vT(c, view);
+// the screen's corners in paper units: a box that covers everything visible, however the view is turned
+function screenBox(v, W, H, m) {
+  const pts = [[0, 0], [W, 0], [0, H], [W, H]].map(([x, y]) => invV(v, x, y)), xs = pts.map(q => q[0]), ys = pts.map(q => q[1]);
+  return [Math.min(...xs) - m, Math.min(...ys) - m, Math.max(...xs) + m, Math.max(...ys) + m];
+}
 // The part of the paper that is on screen (plus a small margin), in world units. Zoomed in, the whole
 // paper is many times the screen; Safari can leave seams when filling shapes that big, so the paper,
 // its texture and shadow clips only ever cover what is visible.
 function onScreen(pad = 4) {
-  const m = pad * view.dpr / view.s;
-  const x0 = Math.max(0, -view.ox / view.s - m), y0 = Math.max(0, -view.oy / view.s - m);
-  const x1 = Math.min(PW(), (cv.width - view.ox) / view.s + m), y1 = Math.min(PH(), (cv.height - view.oy) / view.s + m);
+  const [a, b, c, d] = screenBox(view, cv.width, cv.height, pad * view.dpr / view.s);
+  const x0 = Math.max(0, a), y0 = Math.max(0, b), x1 = Math.min(PW(), c), y1 = Math.min(PH(), d);
   return [x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0)];
 }
 function screenWorld(pad = 40, v = view, W = cv.width, H = cv.height) {
-  const m = pad * v.dpr / v.s;
-  return [-v.ox / v.s - m, -v.oy / v.s - m, W / v.s + 2 * m, H / v.s + 2 * m];
+  const [a, b, c, d] = screenBox(v, W, H, pad * v.dpr / v.s);
+  return [a, b, c - a, d - b];
 }
 
 // the ink layer carries the paper colour too, so multiply-blended inks (felt, highlighter, pencil) mix with the paper
@@ -236,14 +256,14 @@ function trackEdgePath(c, K, cx, cy, teeth, h, tipSign, offset = 0) {
   c.closePath();
 }
 function paintRing(L, G, v, out, W, H) {
-  const key = [L.ring, L.pitch, L.cx, L.cy, L.angle || 0, L.base || 60, P.tint, v.s, v.ox, v.oy, W, H].join();
+  const key = [L.ring, L.pitch, L.cx, L.cy, L.angle || 0, L.base || 60, P.tint, v.s, v.ox, v.oy, v.r || 0, W, H].join();
   if (key === out.key) return;
   out.key = key; out.cv.width = W; out.cv.height = H;
   if (G.track) {
     // a band of acrylic with teeth on both edges, like the round rings: outer edge to roll round, inner edge to roll inside
     const c = out.cv.getContext('2d'), pc = G.ring, h = G.p * .55, rgb = TINTS[P.tint][0], ins = shapeInset(G.p);
     const Ko = shapeTrack(pc, G.p, 0, G.track.ang), Ki = shapeTrack(pc, G.p, -ins, G.track.ang), To = pc.teeth, Ti = pc.teeth - SHAPE_GAP;
-    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); vT(c, v);
     acrylic(c, () => { trackEdgePath(c, Ko, L.cx, L.cy, To, h, 1); trackEdgePath(c, Ki, L.cx, L.cy, Ti, h, -1); }, rgb, L.cx, L.cy, G.Rr, false, v);
     // both tooth counts printed in the band, at whichever point of the outer edge faces up
     let best = 0, bd = 9; for (let i = 0; i < 360; i++) { const s = i / 360 * Ko.Lp, q = trackPoint(Ko, L.cx, L.cy, s); const d = Math.abs(Math.atan2(Math.sin(q[2] + Math.PI / 2), Math.cos(q[2] + Math.PI / 2))); if (d < bd) { bd = d; best = s; } }
@@ -255,7 +275,7 @@ function paintRing(L, G, v, out, W, H) {
   if (G.ring.base) {
     // a wheel pinned to the paper: teeth all round, a pin in the middle, its tooth count
     const c = out.cv.getContext('2d'), h = G.p * .55, rgb = TINTS[P.tint][0], R = radiusOf(G.T, G.p);
-    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); vT(c, v);
     acrylic(c, () => { gearPath(c, L.cx, L.cy, G.T, R, h, 0, true); c.moveTo(L.cx + G.p * .5, L.cy); c.arc(L.cx, L.cy, G.p * .5, 0, TAU, true); }, rgb, L.cx, L.cy, R, false, v);
     c.beginPath(); c.arc(L.cx, L.cy, G.p * .32, 0, TAU); c.fillStyle = `rgba(${rgb.map(x => x * .5 | 0).join()},.85)`; c.fill();
     printed(c, String(G.T), L.cx, L.cy - R * .5, clampN(R * .22, 8, 30), 0, rgb);
@@ -263,14 +283,14 @@ function paintRing(L, G, v, out, W, H) {
   }
   if (G.bar) {
     const c = out.cv.getContext('2d'), B = G.bar, h = G.p * .55, rgb = TINTS[P.tint][0], slot = B.re * .42;
-    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);
+    c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); vT(c, v);
     acrylic(c, () => { barGearPath(c, B, L.cx, L.cy, G.T, h); barSlotPath(c, B, L.cx, L.cy, slot); }, rgb, L.cx, L.cy, B.ls / 2 + B.re, false, v);
     const fs = clampN((B.re - h / 2 - slot) * .45, 8, 30);
     printed(c, String(G.T), L.cx, L.cy - (slot + B.re - h / 2) / 2, fs, 0, rgb);
     return;
   }
   const c = out.cv.getContext('2d'), ring = G.ring, h = G.p * .55, Ri = radiusOf(ring.inner, G.p), Ro = radiusOf(ring.outer, G.p), rgb = TINTS[P.tint][0];
-  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); c.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); vT(c, v);
   acrylic(c, () => { gearPath(c, L.cx, L.cy, ring.outer, Ro, h, 0, true); gearPath(c, L.cx, L.cy, ring.inner, Ri, h, 0, false); }, rgb, L.cx, L.cy, Ro, false, v);
   const band = (Ro - h / 2) - (Ri + h / 2), mid = (Ri + h / 2 + Ro - h / 2) / 2, fs = clampN(band * .2, 8, 30);
   printed(c, String(ring.inner), L.cx, L.cy - (Ri + h / 2 + fs * .9), fs, 0, rgb);
@@ -281,7 +301,7 @@ function drawStencil(c, L, v = view, ring = mainRing, glow = hoverWheel || (drag
   const G = geom(L), w = wheelAt(G, L, L.pos), h = G.p * .55, px = v.dpr / v.s, rgb = TINTS[P.tint][1];
   paintRing(L, G, v, ring, c.canvas.width, c.canvas.height);
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(ring.cv, 0, 0); c.restore();
-  c.setTransform(v.s, 0, 0, v.s, v.ox, v.oy);   // the wheel is drawn in this view's world units (Just watch has its own view)
+  vT(c, v);   // the wheel is drawn in this view's world units (Just watch has its own view)
   const phase = w.spin + (G.inside ? 0 : Math.PI) + Math.PI / G.t;
   acrylic(c, () => gearPath(c, w.wx, w.wy, G.t, G.rr, h, phase, true), rgb, w.wx, w.wy, G.rr, glow, v);
   const holeR = G.p * .17, holeScreen = holeR / px, spacingScreen = G.p * .42 / px;
@@ -324,7 +344,7 @@ function tick(strength = 1) {
 const ghostCv = document.createElement('canvas'), gctx = ghostCv.getContext('2d');
 let ghostKey = '';
 function paintGhost() {
-  const t = tr(cur), key = [cur._key, cur.color, view.s, view.ox, view.oy, cv.width, cv.height, PW(), PH()].join();
+  const t = tr(cur), key = [cur._key, cur.color, view.s, view.ox, view.oy, view.r, cv.width, cv.height, PW(), PH()].join();
   if (key === ghostKey) return;
   ghostKey = key; ghostCv.width = cv.width; ghostCv.height = cv.height;
   const c = gctx, p = t.pts;
@@ -362,6 +382,7 @@ function frame(now) {
   }
   strokeLayer(ctx, cur); drawTexture(ctx, P.paper.texture, vis[2], vis[3], vis[0], vis[1]); ctx.restore();
   if (P.stencil) drawStencil(ctx, cur);
+  if (window.SpeiraView) SpeiraView.drawOverlay(ctx);   // grid, guides, smart guides
 }
 
 // ---------- drawing actions ----------
@@ -437,7 +458,7 @@ let drag = null;
 // the first finger started (and takes back any ink it laid), and nothing rolls again until every finger lifts
 const touches = new Map();
 let pinch = null, pinchHold = false;
-const twoFinger = () => { const [a, b] = [...touches.values()]; return { mx: (a[0] + b[0]) / 2, my: (a[1] + b[1]) / 2, d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1 }; };
+const twoFinger = () => { const [a, b] = [...touches.values()]; return { mx: (a[0] + b[0]) / 2, my: (a[1] + b[1]) / 2, d: Math.hypot(a[0] - b[0], a[1] - b[1]) || 1, ang: Math.atan2(b[1] - a[1], b[0] - a[0]) }; };
 // Apple Pencil: while the Pencil is on or near the screen, a resting palm's touches are ignored
 let penUntil = 0;
 const penNear = e => { if (e.pointerType === 'pen') penUntil = performance.now() + 900; };
@@ -454,6 +475,7 @@ cv.addEventListener('pointerdown', e => {
     }
   }
   if (pinchHold) return;
+  if (window.SpeiraView && SpeiraView.pointerDown(e)) return;   // grabbing a guide comes first
   const [x, y] = toWorld(e.clientX, e.clientY);
   try { cv.setPointerCapture(e.pointerId); } catch {}
   if (e.button === 1) { e.preventDefault(); drag = { kind: 'pan', x: e.clientX, y: e.clientY }; cv.classList.add('panning'); return; }
@@ -475,8 +497,11 @@ cv.addEventListener('pointermove', e => {
     if (touches.size < 2) return;
     const n = twoFinger();
     zoomBy(n.d / pinch.d, n.mx, n.my); panBy(n.mx - pinch.mx, n.my - pinch.my);
-    pinch = n; return;
+    // twisting two fingers turns the paper, like turning a sheet on a desk (it settles on straight)
+    pinch.rot = (pinch.rot ?? cam.r) + Math.atan2(Math.sin(n.ang - pinch.ang), Math.cos(n.ang - pinch.ang)); rotateTo(pinch.rot);
+    pinch = { ...n, rot: pinch.rot }; return;
   }
+  if (window.SpeiraView) SpeiraView.hover(e);   // guide cursors, pointer position in the info bar
   if (drag && drag.kind === 'pan') { panBy(e.clientX - drag.x, e.clientY - drag.y); drag.x = e.clientX; drag.y = e.clientY; return; }
   const [x, y] = toWorld(e.clientX, e.clientY);
   if (!drag) {
@@ -485,7 +510,10 @@ cv.addEventListener('pointermove', e => {
     if (over !== hoverWheel) { hoverWheel = over; cv.classList.toggle('over-wheel', over); }
     return;
   }
-  if (drag.kind === 'move') { change(s => { s.cx = Math.round(clampN(x, 0, PW())); s.cy = Math.round(clampN(y, 0, PH())); }); return; }
+  if (drag.kind === 'move') {
+    const [mx, my] = window.SpeiraView ? SpeiraView.snapMove(x, y, e) : [x, y];   // snaps to guides, centre, grid, other pieces
+    change(s => { s.cx = Math.round(clampN(mx, 0, PW()) * 100) / 100; s.cy = Math.round(clampN(my, 0, PH()) * 100) / 100; }); return;
+  }
   const ang = Math.atan2(y - cur.cy, x - cur.cx);
   let d = ang - drag.last; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU;
   drag.last = ang;
@@ -493,6 +521,7 @@ cv.addEventListener('pointermove', e => {
   if (Math.abs(d) > 1e-4) advance(d);
 });
 const endDrag = () => {
+  if (drag && drag.kind === 'move' && window.SpeiraView) SpeiraView.endMove();
   if (drag && drag.kind === 'roll' && P.momentum && drag.samples.length > 1) {
     const s = drag.samples, span = (s[s.length - 1][0] - s[0][0]) / 1000, sum = s.reduce((a, q) => a + q[1], 0);
     const v = span > .01 ? sum / span : 0;
@@ -516,8 +545,8 @@ cv.addEventListener('wheel', e => {
   if (e.ctrlKey || e.metaKey) zoomBy(Math.exp(-clampN(e.deltaY * k, -60, 60) * .01), e.clientX, e.clientY);
   else panBy(-e.deltaX * k, -e.deltaY * k);
 }, { passive: false });
-cv.addEventListener('gesturestart', e => { e.preventDefault(); if (!touches.size) gesture = { z: cam.z }; });
-cv.addEventListener('gesturechange', e => { e.preventDefault(); if (gesture) zoomTo(gesture.z * e.scale, e.clientX, e.clientY); });
+cv.addEventListener('gesturestart', e => { e.preventDefault(); if (!touches.size) gesture = { z: cam.z, r: cam.r }; });
+cv.addEventListener('gesturechange', e => { e.preventDefault(); if (gesture) { zoomTo(gesture.z * e.scale, e.clientX, e.clientY); if (e.rotation) rotateTo(gesture.r + e.rotation * Math.PI / 180); } });
 cv.addEventListener('gestureend', e => { e.preventDefault(); gesture = null; });
 // keep Safari from zooming the whole page when a pinch starts off the canvas
 document.addEventListener('gesturestart', e => e.preventDefault());
@@ -1218,5 +1247,9 @@ const setDocFolder = folder => { doc.folder = folder; save(); };
 function detachDoc() { doc.id = null; savedHash = ''; syncDocTitle(); save(); }
 window.SpiroLab = { get layers() { return layers; }, get cur() { return cur; }, S, P, exportSVG, exportPNG, finish, newLayerFromCurrent, change,
   adoptAdd, watchDoc, ringCache, drawPieces: (c, L, v, ring) => drawStencil(c, L, v, ring, false),
+  // for the View menu (js/view.js)
+  v: { view, cam, get cv() { return cv; }, PW, PH, MM, applyView, zoomBy, zoomTo, resetView, actualSize, rotateTo, toWorld, worldToDev, devToWorld,
+    toggleFullscreen, isFull: () => !!fsEl(), stencilCentres: () => layers.filter(l => l.visible).map(l => [l.cx, l.cy]),
+    persist: () => save(), get cur() { return cur; }, get layerCount() { return layers.length + (inked(cur) ? 1 : 0); }, pieceWords: L => pieceWords(L), redraw: () => { inkDirty = true; mainRing.key = ''; } },
   get doc() { return doc; }, docData, isDirtyDoc, thumbnail, loadDoc, newDoc, markSaved, renameDoc, setDocFolder, detachDoc, canvasName, toast: (m, bad) => toast(m, bad) };
 })();
