@@ -31,6 +31,7 @@
       </div>
       <button class="wtog" id="wRainbow" type="button" aria-pressed="false" title="Rainbow ink on every layer (R)"><svg><use href="#i-rainbow"/></svg><span>Rainbow</span></button>
       <button class="wtog" id="wPieces" type="button" aria-pressed="false" title="Show the ring and wheel (P)"><svg><use href="#i-eye"/></svg><span>Pieces</span></button>
+      <button class="wtog" id="wTwo" type="button" aria-pressed="false" title="Two patterns at once, side by side (T)"><svg><use href="#i-plus"/></svg><span>Two at once</span></button>
     </div>
     <div class="wrow">
       <div class="wsound">
@@ -49,13 +50,11 @@
     </div>
   </div>
   <div class="wtoast" id="wToast" role="status" aria-live="polite"></div>
-  <div class="wkeep" id="wKeepAsk" role="dialog" aria-label="Keep this picture" hidden>
-    <p>Keep what's on screen as…</p>
-    <button class="wtog" type="button" data-keep="new">A new drawing in my Sketchbook</button>
-    <button class="wtog" type="button" data-keep="add">New layers on my canvas</button>
-    <button class="wtog" type="button" data-keep="cancel">Cancel</button>
+  <div class="wkeep" id="wAsk" role="dialog" aria-modal="true" aria-label="Question" hidden>
+    <p></p>
+    <div class="wask-btns"></div>
   </div>
-  <p class="whint">Drag in circles to roll it yourself · <kbd>Space</kbd> pause · <kbd>→</kbd> next layer · <kbd>R</kbd> rainbow · <kbd>P</kbd> pieces · <kbd>K</kbd> keep · <kbd>M</kbd> mute · <kbd>Esc</kbd> leave</p>
+  <p class="whint">Drag in circles to roll it yourself · <kbd>Space</kbd> pause · <kbd>→</kbd> next layer · <kbd>R</kbd> rainbow · <kbd>P</kbd> pieces · <kbd>T</kbd> two at once · <kbd>K</kbd> keep · <kbd>M</kbd> mute · <kbd>Esc</kbd> leave</p>
 </div>
 <div class="helpwrap" id="help" hidden>
   <div class="helppanel" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
@@ -155,6 +154,8 @@
     <canvas class="ruler ruler-left" id="rulerLeft" aria-label="Ruler: drag across onto the paper to make a guide"></canvas>
     <div class="rulercorner" aria-hidden="true"></div>
     <div class="infobar" id="infoBar" hidden></div>
+    <div class="setbar" id="setBar" role="group" aria-label="Sets of pieces"></div>
+    <div class="setkinds" id="setKinds" role="menu" aria-label="Which kind of set" hidden></div>
     <div class="zoombar" role="group" aria-label="Zoom">
       <button class="zbtn" id="zoomOut" type="button" aria-label="Zoom out" title="Zoom out (⌘−)"><svg><use href="#i-magnifying-glass-minus"/></svg></button>
       <button class="zbtn zpct" id="zoomPct" type="button" title="Fit the paper to the window (⌘0) · ⌘1 for actual size">Fit</button>

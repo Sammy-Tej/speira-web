@@ -25,7 +25,11 @@ const HELP = [
       ['Start shift and Auto shift', '<b>Start shift</b> starts the pattern a few teeth further round, so the next pass sits between the last one. <b>Auto shift</b> does that for you every time you start a new layer.'],
       ['Kit size', 'Makes every piece bigger or smaller together. It changes how big the pattern is, not its shape.'],
       ['Moving the piece', '<b>Move ring</b> (or hold <kbd>Alt</kbd> and drag) moves the piece on the paper; <b>Centre ring</b> puts it back in the middle.'],
-      ['Petals and laps', 'Under Draw you can see how many petals the pattern will have and after how many trips round it closes.']
+      ['Petals and laps', 'Under Draw you can see how many petals the pattern will have and after how many trips round it closes.'],
+      ['Two sets at once', 'Press <b>Second set</b> at the top of the paper and choose which kind: round ring, bar, oval, triangle, square or fixed wheel. It goes beside the first set in a new pen colour. The sets may overlap.'],
+      ['Choosing a set', 'Touch a set\'s pieces, its name at the top, or press <kbd>S</kbd>. The chosen set is lit up and looks solid; the panel and Repeat change only that set. The other set looks faded.'],
+      ['Drawing with two sets', 'Each set has its own Draw button (▶) at the top, so they can draw one at a time or both together. The Draw button in the panel draws the chosen set.'],
+      ['Back to one set', 'The ✕ next to a set takes its pieces off the paper. Anything it drew stays as a layer.']
     ]
   },
   {
@@ -116,14 +120,18 @@ const HELP = [
   {
     id: 'watch', title: 'Just watch', summary: 'Sit back while Speira draws by itself.',
     items: [
-      ['Start', 'Press <b>Watch</b> (or <kbd>W</kbd>). Speira fills the screen and composes patterns on its own, forever.'],
-      ['Layers come and go', 'Up to six layers build up (fewer if you choose), then the oldest fades as each new one starts.'],
-      ['Controls', 'Move the mouse to see them: speed, colour mood, rainbow ink, show the pieces, layers on screen, click volume, pause, next layer and leave.'],
-      ['Keys', '<kbd>Space</kbd> pause · <kbd>→</kbd> next layer · <kbd>R</kbd> rainbow · <kbd>P</kbd> pieces · <kbd>K</kbd> keep · <kbd>M</kbd> mute · <kbd>Esc</kbd> leave.'],
+      ['Start', 'Press <b>Watch</b> (or <kbd>W</kbd>). Speira fills the screen and composes patterns on its own, forever, on black. Every visit starts with a fresh sheet.'],
+      ['Bring your drawing', 'If there is a drawing on your canvas, Watch asks first: <b>Start fresh</b>, or <b>Use my drawing</b>. With your drawing, Speira adds its layers on top; your own layers stay put and never fade.'],
+      ['Layers come and go', 'Up to six of Speira\'s layers build up (fewer if you choose), then the oldest fades as each new one starts.'],
+      ['Two at once', '<b>Two at once</b> (or <kbd>T</kbd>) draws two patterns side by side. They never overlap.'],
+      ['Controls', 'Move the mouse to see them: speed, colour mood, rainbow ink, show the pieces, two at once, layers on screen, click volume, pause, next layer and leave.'],
+      ['Keys', '<kbd>Space</kbd> pause · <kbd>→</kbd> next layer · <kbd>R</kbd> rainbow · <kbd>P</kbd> pieces · <kbd>T</kbd> two at once · <kbd>K</kbd> keep · <kbd>M</kbd> mute · <kbd>Esc</kbd> leave.'],
       ['Roll it yourself', 'Drag in circles to turn the wheel; let go and Speira carries on.'],
-      ['Keep', '<b>Keep</b> (or <kbd>K</kbd>) asks how to keep what is on screen: as <b>a new drawing in your Sketchbook</b> (on black paper), or as <b>new layers on your canvas</b> on top of what you were drawing (<kbd>⌘</kbd><kbd>Z</kbd> takes them off again).'],
+      ['Leaving', 'If Speira drew anything you haven\'t kept, leaving asks what to do: add it to your canvas as new layers (<kbd>⌘</kbd><kbd>Z</kbd> takes them off again), save it as a new drawing in your Sketchbook, or leave without saving. <b>Keep watching</b> takes you back.'],
+      ['Keeping when you brought your drawing', 'You choose: <b>Add them to my drawing</b> puts Speira\'s layers on your drawing, where you saw them; <b>Save as a copy</b> leaves your drawing as it was and saves a copy with Speira\'s layers on top.'],
+      ['Keep', '<b>Keep</b> (or <kbd>K</kbd>) asks the same question without leaving, so you can keep a moment and carry on watching.'],
       ['Session code', 'Every session has a six-letter code. Type a code and press Enter to replay that session with the same colour setting.'],
-      ['Bedtime', '<b>Sleep</b> fades the picture and the clicks to black after 30, 60 or 90 minutes, then rests.']
+      ['Bedtime', '<b>Sleep</b> fades the picture and the clicks to black after 30, 60 or 90 minutes, then rests. Nobody is there to ask, so it quietly saves what Speira drew in your Sketchbook: as a new drawing, or as a copy of yours if you brought it along. Your canvas is never changed.']
     ]
   },
   {
@@ -144,12 +152,12 @@ const HELP = [
     id: 'keys', title: 'All keyboard shortcuts', summary: 'Everything in one list.',
     items: [
       ['Drawing', '<kbd>Space</kbd> draw / pause · <kbd>Enter</kbd> new layer · <kbd>F</kbd> finish · <kbd>←</kbd><kbd>→</kbd> roll a tooth (<kbd>⇧</kbd> for ten) · <kbd>L</kbd> lift the pen'],
-      ['Pieces and pen', '<kbd>[</kbd> <kbd>]</kbd> previous / next pen hole · <kbd>,</kbd> <kbd>.</kbd> start shift back / forward · <kbd>H</kbd> pieces · <kbd>G</kbd> preview'],
+      ['Pieces and pen', '<kbd>[</kbd> <kbd>]</kbd> previous / next pen hole · <kbd>,</kbd> <kbd>.</kbd> start shift back / forward · <kbd>H</kbd> pieces · <kbd>G</kbd> preview · <kbd>S</kbd> switch between two sets'],
       ['View', '<kbd>⌘</kbd><kbd>+</kbd> / <kbd>⌘</kbd><kbd>−</kbd> zoom · <kbd>⌘</kbd><kbd>0</kbd> fit · <kbd>⌘</kbd><kbd>1</kbd> actual size · <kbd>⌃</kbd><kbd>⌘</kbd><kbd>F</kbd> full screen'],
       ['Rulers and guides', '<kbd>⌃</kbd><kbd>⌘</kbd><kbd>R</kbd> rulers · <kbd>⌘</kbd><kbd>;</kbd> guides · <kbd>⌥</kbd><kbd>⌘</kbd><kbd>;</kbd> lock guides · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>;</kbd> snapping · <kbd>⌃</kbd> while dragging: no snapping · <kbd>⌘</kbd><kbd>\'</kbd> grid'],
       ['Panels', '<kbd>⌃</kbd><kbd>⌘</kbd><kbd>I</kbd> info bar · <kbd>⌃</kbd><kbd>⌘</kbd><kbd>P</kbd> hide panel · <kbd>⌃</kbd><kbd>H</kbd> hide everything (<kbd>Esc</kbd> to bring back)'],
       ['Files', '<kbd>⌘</kbd><kbd>S</kbd> save · <kbd>⌘</kbd><kbd>O</kbd> Sketchbook · <kbd>⌘</kbd><kbd>E</kbd> export · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>E</kbd> export again · <kbd>⌘</kbd><kbd>Z</kbd> undo · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>Z</kbd> redo · <kbd>⌘</kbd><kbd>V</kbd> paste a recipe'],
-      ['Elsewhere', '<kbd>W</kbd> Just watch · <kbd>?</kbd> this Help']
+      ['Elsewhere', '<kbd>W</kbd> Just watch (<kbd>T</kbd> two at once inside it) · <kbd>?</kbd> this Help']
     ]
   }
 ];

@@ -12,15 +12,23 @@ const P = { bg: '#ffffff', stencil: true, autoHide: true, ghost: true, speed: .6
 const PW = () => paperWorld(P.paper)[0], PH = () => paperWorld(P.paper)[1];
 let layers = [], cur = null, playing = false, uid = 1;
 let rpQueue = [], rpN = 0;   // Repeat: passes still to draw, and how many there are in all
+// Two sets of pieces at once. The selected set lives in S / cur / playing as always; the other one waits in `other`
+// ({ S, cur, playing, idx, rpQueue, rpN }) and can keep drawing on its own. idx: 0 = Set 1, 1 = Set 2.
+let other = null, activeIdx = 0;
+const otherRing = { cv: document.createElement('canvas'), key: '' };
 let past = [], future = [];
 
-const newLayer = () => ({ id: uid++, ...S, a: 0, b: 0, pos: 0, visible: true });
+const layerFrom = s => ({ id: uid++, ...s, a: 0, b: 0, pos: 0, visible: true });
+const newLayer = () => layerFrom(S);
 const inked = L => L && L.b - L.a > 1e-6;
 const strip = L => { const { _tr, _key, _plan, _pk, _xy, ...rest } = L; return rest; };
 // withBg: also remember the paper colour (only for steps that change it, like keeping a Just watch picture)
-const snapshot = (withBg = false) => JSON.stringify({ layers: layers.map(strip), cur: strip(cur), paper: P.paper, ...(withBg ? { bg: P.bg } : {}) });
+const twoData = () => other ? { two: { S: { ...other.S }, cur: strip(other.cur), idx: other.idx }, ai: activeIdx } : {};
+function setTwo(o) { other = o && o.two ? { S: { ...o.two.S }, cur: { ...o.two.cur }, idx: o.two.idx, playing: false, rpQueue: [], rpN: 0 } : null; activeIdx = other ? (o.ai ?? 0) : 0; otherRing.key = ''; }
+const allIds = () => [...layers.map(l => l.id + 1), cur ? cur.id + 1 : 1, other ? other.cur.id + 1 : 1];
+const snapshot = (withBg = false) => JSON.stringify({ layers: layers.map(strip), cur: strip(cur), paper: P.paper, ...twoData(), ...(withBg ? { bg: P.bg } : {}) });
 const hasBg = json => JSON.parse(json).bg != null;
-function restore(json) { rpQueue = []; rpN = 0; const o = JSON.parse(json); layers = o.layers; cur = o.cur; if (o.bg) P.bg = o.bg; if (o.paper) { P.paper = o.paper; fit(); mainRing.key = ''; } uid = Math.max(uid, ...layers.map(l => l.id + 1), cur.id + 1); Object.assign(S, pickS(cur)); syncControls(); dirty(); }
+function restore(json) { rpQueue = []; rpN = 0; const o = JSON.parse(json); layers = o.layers; cur = o.cur; setTwo(o); if (o.bg) P.bg = o.bg; if (o.paper) { P.paper = o.paper; fit(); mainRing.key = ''; } uid = Math.max(uid, ...allIds()); Object.assign(S, pickS(cur)); syncControls(); dirty(); }
 const pickS = L => Object.fromEntries(Object.keys(S).map(k => [k, L[k]]));
 function remember(withBg = false) { past.push(snapshot(withBg)); if (past.length > 200) past.shift(); future = []; }
 function undo() { if (!past.length) return; const s = past.pop(); future.push(snapshot(hasBg(s))); restore(s); stop(); }
@@ -31,7 +39,7 @@ const two = n => String(n).padStart(2, '0');
 const ddmmyy = (d = new Date()) => `${two(d.getDate())}/${two(d.getMonth() + 1)}/${String(d.getFullYear()).slice(2)}`;
 const canvasName = () => `Canvas ${ddmmyy()}`;
 let doc = { id: null, name: canvasName(), folder: 'mine' }, savedHash = '';
-const docData = () => ({ layers: layers.map(strip), cur: strip(cur), paper: P.paper, bg: P.bg });
+const docData = () => ({ layers: layers.map(strip), cur: strip(cur), paper: P.paper, bg: P.bg, ...twoData() });
 const hashOf = str => { let h = 5381; for (let i = 0; i < str.length; i++) h = (Math.imul(h, 33) ^ str.charCodeAt(i)) >>> 0; return h.toString(36); };
 const docHash = () => hashOf(JSON.stringify(docData()));
 const isDirtyDoc = () => docHash() !== savedHash;
@@ -45,14 +53,14 @@ function syncDocTitle() {
 // keeps the working drawing in this browser between visits (separate from saving it into the Sketchbook)
 function save() {
   clearTimeout(save.t);
-  save.t = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify({ S, P, layers: layers.map(strip), cur: strip(cur), doc, savedHash })); } catch {} }, 300);
+  save.t = setTimeout(() => { try { localStorage.setItem(STORE, JSON.stringify({ S, P, layers: layers.map(strip), cur: strip(cur), ...twoData(), doc, savedHash })); } catch {} }, 300);
 }
 function load() {
   try {
     const o = JSON.parse(localStorage.getItem(STORE) || 'null'); if (!o) return false;
     Object.assign(S, o.S); Object.assign(P, o.P); P.paper = { ...DEFAULT_PAPER, ...(o.P && o.P.paper) }; layers = o.layers || []; cur = o.cur || newLayer();
-    if (o.doc) doc = o.doc; if (o.savedHash) savedHash = o.savedHash;
-    uid = Math.max(1, ...layers.map(l => l.id + 1), cur.id + 1); return true;
+    setTwo(o); if (o.doc) doc = o.doc; if (o.savedHash) savedHash = o.savedHash;
+    uid = Math.max(1, ...allIds()); return true;
   } catch { return false; }
 }
 
@@ -363,6 +371,7 @@ function frame(now) {
   if (document.body.classList.contains('watching')) return;   // Just watch has the screen; the drawing waits
   if (!cv.width || !cv.height) { fit(); if (!cv.width || !cv.height) return; }
   if (playing) advance(P.speed * TAU * dt);
+  if (other && other.playing) advanceOther(P.speed * TAU * dt);
   else if (coast) {
     advance(coast.v * dt);
     coast.v *= Math.exp(-2.6 * dt);
@@ -380,7 +389,9 @@ function frame(now) {
     paintGhost();
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = luminance(P.bg) > .5 ? .2 : .28; ctx.drawImage(ghostCv, 0, 0); ctx.restore();
   }
+  if (other) strokeLayer(ctx, other.cur);
   strokeLayer(ctx, cur); drawTexture(ctx, P.paper.texture, vis[2], vis[3], vis[0], vis[1]); ctx.restore();
+  if (P.stencil && other) { ctx.save(); ctx.globalAlpha = .55; drawStencil(ctx, other.cur, view, otherRing, false); ctx.restore(); }   // the set that isn't selected, a little faded
   if (P.stencil) drawStencil(ctx, cur);
   if (window.SpeiraView) SpeiraView.drawOverlay(ctx);   // grid, guides, smart guides
 }
@@ -400,6 +411,18 @@ function advance(d) {
     if (playing || coast) { stop(); coast = null; toast(rpN ? `All ${rpN} passes drawn. ⌘Z takes them all off.` : 'Pattern complete — it closed after ' + G.laps + (G.laps === 1 ? ' lap' : ' laps')); rpN = 0; if (P.autoHide && P.stencil) showPieces(false, true); }
   }
   readout(); save();
+}
+// the set that isn't selected, drawing on its own (its own Draw button in the set bar)
+function advanceOther(d) {
+  const L = other.cur, G = tr(L).G, before = Math.floor(L.pos * G.T / TAU);
+  L.pos += d; if (Math.floor(L.pos * G.T / TAU) !== before) tick(.4);
+  L.a = Math.min(L.a, L.pos); L.b = Math.max(L.b, L.pos);
+  if (L.b - L.a >= G.total) {
+    L.b = L.a + G.total;
+    if (other.rpQueue.length) { layers.push(L); const q = other.rpQueue.shift(); other.cur = layerFrom({ ...other.S, shift: q.shift, color: q.color }); dirty(); return; }
+    other.playing = false; toast(`Set ${other.idx + 1} finished${other.rpN ? `: all ${other.rpN} passes` : ''}`); other.rpN = 0; renderSets();
+  }
+  save();
 }
 function play() {
   if (autoHidden) showPieces(true);
@@ -480,6 +503,7 @@ cv.addEventListener('pointerdown', e => {
   try { cv.setPointerCapture(e.pointerId); } catch {}
   if (e.button === 1) { e.preventDefault(); drag = { kind: 'pan', x: e.clientX, y: e.clientY }; cv.classList.add('panning'); return; }
   if (moveMode || e.altKey) { drag = { kind: 'move' }; return; }
+  if (other && P.stencil && touchesOther(x, y)) { swapSets(); return; }
   if (P.stencil) {
     const G = geom(cur), w = wheelAt(G, cur, cur.pos), tol = Math.max(G.p * .32, (e.pointerType === 'touch' ? 22 : 10) * view.dpr / view.s);   // fingers get a bigger target
     const hit = G.holes.findIndex(h => Math.hypot(w.wx + h.d * Math.cos(w.spin + h.a) - x, w.wy + h.d * Math.sin(w.spin + h.a) - y) < tol);
@@ -508,6 +532,7 @@ cv.addEventListener('pointermove', e => {
     let over = false;
     if (P.stencil) { const G = geom(cur), w = wheelAt(G, cur, cur.pos); over = Math.hypot(x - w.wx, y - w.wy) < G.rr + G.p * .3; }
     if (over !== hoverWheel) { hoverWheel = over; cv.classList.toggle('over-wheel', over); }
+    cv.classList.toggle('over-set', !over && !!other && P.stencil && touchesOther(x, y));
     return;
   }
   if (drag.kind === 'move') {
@@ -576,7 +601,7 @@ function download(blob, name) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
-const visibleInk = () => [...layers.filter(l => l.visible), cur].filter(inked);
+const visibleInk = () => [...layers.filter(l => l.visible), ...(other ? [other.cur] : []), cur].filter(inked);
 const penName = L => (PEN_STYLES[L.pen] || PEN_STYLES.ballpoint).label;
 const pieceWords = L => isBase(L) ? `fixed ${L.base || 60}-tooth wheel` : isBar(L) ? pieceName(L.ring).toLowerCase() : isShape(L) ? `${pieceName(L.ring).toLowerCase()} ring` : `${pieceName(L.ring).replace(' / ', '/')} ring`;
 const describe = L => `${pieceWords(L)}, ${L.wheel}-tooth wheel ${L.mode}, hole ${L.hole + 1}, shift ${L.shift}, ${penName(L).toLowerCase()} pen${L.rainbow ? ', rainbow ink' : ''}`;
@@ -940,7 +965,7 @@ const clearBtn = $('#clear');
 clearBtn.addEventListener('click', () => {
   if (!clearBtn.classList.contains('confirm')) { clearBtn.classList.add('confirm'); clearBtn.textContent = 'Click again to clear'; setTimeout(() => { clearBtn.classList.remove('confirm'); clearBtn.textContent = 'Clear paper'; }, 2500); return; }
   clearBtn.classList.remove('confirm'); clearBtn.textContent = 'Clear paper';
-  remember(); stop(); layers = []; cur = newLayer(); dirty();
+  remember(); stop(); layers = []; cur = newLayer(); if (other) { other.playing = false; other.rpQueue = []; other.cur = layerFrom(other.S); } renderSets(); dirty();
 });
 
 // ---------- invisible ink: warn when the pen will barely show on the paper ----------
@@ -1007,7 +1032,8 @@ function syncControls() {
 function syncPlay() {
   const b = $('#play'); b.setAttribute('aria-pressed', playing);
   b.querySelector('use').setAttribute('href', playing ? '#i-pause' : '#i-play');
-  b.querySelector('span').textContent = playing ? 'Pause' : inked(cur) ? 'Continue' : 'Draw';
+  b.querySelector('span').textContent = (playing ? 'Pause' : inked(cur) ? 'Continue' : 'Draw') + (other ? ` set ${activeIdx + 1}` : '');
+  renderSets();
   $('#undo').disabled = !past.length; $('#redo').disabled = !future.length;
 }
 function readout() {
@@ -1184,6 +1210,7 @@ addEventListener('keydown', e => {
   else if (e.key === 'w' && window.SpeiraWatch) SpeiraWatch.enter();
   else if (e.key === '?' && window.SpeiraHelp) { e.preventDefault(); SpeiraHelp.open(); }
   else if (e.key === 'l') { stop(); setPen(!penUp); }
+  else if (e.key === 's' && other) swapSets();
   else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.target.matches('input, select, textarea, .grip')) {
     // roll the wheel with the keyboard: one tooth per press (hold to keep rolling), Shift for ten
     e.preventDefault(); stop();
@@ -1198,6 +1225,79 @@ addEventListener('keydown', e => {
   else if (e.key === ',') change(s => s.shift = (s.shift - 1 + 1000) % 1000);
   else if (e.key === '.') change(s => s.shift = (s.shift + 1) % 1000);
 });
+
+// ---------- two sets of pieces ----------
+// The kinds you can add as a second set: the piece each starts with
+const SET_KINDS = [['Round ring', 1], ['Bar', 3], ['Oval', 4], ['Triangle', 5], ['Square', 6], ['Fixed wheel', PIECES.length - 1]];
+const kindName = L => isBase(L) ? 'Fixed wheel' : isBar(L) ? 'Bar' : isShape(L) ? PIECES[L.ring].name : 'Round ring';
+// how far a set's pieces reach from their centre (the wheel's far edge, or the ring's outer edge)
+function reach(L) { const G = geom(L), ring = G.ring && G.ring.outer && !G.ring.base ? radiusOf(G.ring.outer, G.p) : 0; return Math.max(G.c + G.rr, ring, G.Rr || 0); }
+// a touch on the other set's pieces (and not on the selected wheel) chooses that set
+function touchesOther(x, y) {
+  const G = geom(cur), w = wheelAt(G, cur, cur.pos);
+  if (Math.hypot(x - w.wx, y - w.wy) < G.rr) return false;
+  const o = other.cur, d = Math.hypot(x - o.cx, y - o.cy);
+  return d < reach(o) && d < Math.hypot(x - cur.cx, y - cur.cy);
+}
+function swapSets() {
+  if (!other) return;
+  coast = null; if (penUp) setPen(false);
+  const mine = { S: { ...S }, cur, playing, idx: activeIdx, rpQueue, rpN };
+  Object.assign(S, other.S); cur = other.cur; playing = other.playing; activeIdx = other.idx; rpQueue = other.rpQueue || []; rpN = other.rpN || 0;
+  other = mine; mainRing.key = ''; otherRing.key = ''; ghostKey = '';
+  syncControls(); dirty(); toast(`Set ${activeIdx + 1} chosen: the panel now changes this set`);
+}
+function addSet(ring) {
+  stop(); remember();
+  const s = { ...S, ring, angle: 0, shift: 0 };
+  s.mode = outsideOnly(s) ? 'outside' : 'inside'; if (!wheelFits(s, s.wheel)) { s.wheel = [...WHEELS].reverse().find(x => wheelFits(s, x)) || WHEELS[0]; }
+  s.hole = Math.min(s.hole, holesFor(s.wheel, s.pitch).length - 1);
+  // side by side when the paper has room (pieces may hang over its edge, as on a real desk); overlapping is fine too
+  const dir = cur.cx <= PW() / 2 ? 1 : -1; s.cx = clampN(cur.cx + dir * Math.min((reach(cur) + reach(s)) * .92, PW() * .42), PW() * .08, PW() * .92); s.cy = cur.cy;
+  const i = PENS.indexOf(S.color), choices = PENS.filter(c => c !== S.color && contrast(c, P.bg) > 2);
+  s.color = choices[(Math.max(0, i) + 3) % choices.length] || S.color;
+  other = { S: s, cur: layerFrom(s), playing: false, idx: 1 - activeIdx, rpQueue: [], rpN: 0 };
+  swapSets(); toast(`Set ${activeIdx + 1} added: ${kindName(s).toLowerCase()}. Touch a set's pieces, or its name at the top, to choose it`);
+}
+// take a set's pieces off the paper; anything it drew stays as a layer
+function removeSet(idx) {
+  if (!other) return;
+  stop(); remember();
+  if (idx === activeIdx) swapSets();
+  if (inked(other.cur)) layers.push(other.cur);
+  other = null; activeIdx = 0; syncControls(); dirty(); toast('Back to one set. Its drawing stays on the paper');
+}
+function playOther() {
+  if (!other) return;
+  if (!other.playing) {
+    remember();
+    if (other.cur.b - other.cur.a >= tr(other.cur).G.total - 1e-9) { layers.push(other.cur); other.S.shift = (other.S.shift + (other.S.autoShift || 0)) % 1000; other.cur = layerFrom(other.S); dirty(); }
+  }
+  other.playing = !other.playing; renderSets();
+}
+const setBar = $('#setBar'), setKinds = $('#setKinds');
+function renderSets() {
+  if (!setBar) return;
+  const sets = other ? [[activeIdx, cur, playing, true], [other.idx, other.cur, other.playing, false]].sort((a, b) => a[0] - b[0]) : [];
+  setBar.innerHTML = sets.map(([idx, L, on, sel]) => `<div class="setchip${sel ? ' on' : ''}">
+      <button type="button" class="setpick" data-pick="${idx}" aria-pressed="${sel}" title="${sel ? 'The panel changes this set' : 'Choose this set (S)'}"><i class="dot${L.rainbow ? ' rainbow' : ''}" style="--c:${L.color}"></i><b>Set ${idx + 1}</b><small>${kindName(L)}</small></button>
+      <button type="button" class="setico" data-play="${idx}" aria-label="${on ? 'Pause' : 'Draw'} set ${idx + 1}" title="${on ? 'Pause' : 'Draw'} set ${idx + 1}"><svg><use href="#i-${on ? 'pause' : 'play'}"/></svg></button>
+      <button type="button" class="setico" data-remove="${idx}" aria-label="Take set ${idx + 1} off the paper" title="Take set ${idx + 1} off the paper (its drawing stays)"><svg><use href="#i-x"/></svg></button></div>`).join('')
+    + (other ? '' : `<button type="button" class="stagebtn" id="addSet" aria-haspopup="menu" aria-expanded="${!setKinds.hidden}" title="Put a second set of pieces on the paper"><svg><use href="#i-plus"/></svg>Second set</button>`);
+}
+setBar && setBar.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'addSet') { setKinds.hidden = !setKinds.hidden; renderSets(); if (!setKinds.hidden) setKinds.querySelector('button').focus(); return; }
+  if (b.dataset.pick != null && +b.dataset.pick !== activeIdx) swapSets();
+  if (b.dataset.play != null) { if (+b.dataset.play === activeIdx) { playing ? stop() : play(); } else playOther(); }
+  if (b.dataset.remove != null) removeSet(+b.dataset.remove);
+});
+if (setKinds) {
+  setKinds.innerHTML = '<p>Which kind of set?</p>' + SET_KINDS.map(([n, i]) => `<button type="button" role="menuitem" data-ring="${i}">${n}</button>`).join('');
+  setKinds.addEventListener('click', e => { const b = e.target.closest('[data-ring]'); if (!b) return; setKinds.hidden = true; addSet(+b.dataset.ring); });
+  setKinds.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); setKinds.hidden = true; renderSets(); $('#addSet')?.focus(); } });
+  document.addEventListener('pointerdown', e => { if (!setKinds.hidden && !setKinds.contains(e.target) && !e.target.closest('#addSet')) { setKinds.hidden = true; renderSets(); } }, true);
+}
 
 // ---------- start ----------
 if (!load()) cur = newLayer();
@@ -1215,6 +1315,10 @@ function watchLayers(list) {
 function adoptAdd(list) { stop(); remember(); layers = [...layers, ...(inked(cur) ? [cur] : []), ...watchLayers(list)]; cur = newLayer(); syncControls(); dirty(); }
 // keep, option 2: a drawing of its own on black paper, for the Sketchbook to save
 const watchDoc = list => ({ layers: watchLayers(list), cur: strip(newLayer()), paper: P.paper, bg: '#000000' });
+// keep, option 3 (Watch was started with your drawing): a copy of your drawing with them on top, on black like in Watch
+const watchCopy = list => ({ layers: [...visibleInk().map(L => ({ ...strip(L), visible: true })), ...watchLayers(list)], cur: strip(newLayer()), paper: P.paper, bg: '#000000' });
+// what Just watch needs to bring your drawing along: every visible line, and the paper's size
+const inkForWatch = () => ({ layers: visibleInk().map(strip), W: PW(), H: PH() });
 
 // ---------- opening, starting and saving drawings (the Sketchbook calls these) ----------
 // a small picture of the drawing for the Sketchbook grid; works for the open drawing or any saved one
@@ -1222,17 +1326,17 @@ function thumbnail(data = null, maxSide = 360) {
   const paper = data ? { ...DEFAULT_PAPER, ...data.paper } : P.paper, [W, H] = paperWorld(paper), k = maxSide / Math.max(W, H);
   const c = document.createElement('canvas'); c.width = Math.round(W * k); c.height = Math.round(H * k);
   const x = c.getContext('2d'); x.scale(k, k); x.fillStyle = data ? data.bg : P.bg; x.fillRect(0, 0, W, H);
-  const list = data ? [...data.layers.filter(l => l.visible), data.cur].filter(inked) : visibleInk();
+  const list = data ? [...data.layers.filter(l => l.visible), ...(data.two ? [data.two.cur] : []), data.cur].filter(inked) : visibleInk();
   const light = luminance(data ? data.bg : P.bg) > .5;
   for (const L of list) { const t = trace(L), xy = []; for (const i of rangeIdx(t, L.a, L.b)) xy.push(t.pts[i * 2], t.pts[i * 2 + 1]); drawPlan(x, buildPlan({ ...L, width: Math.max(L.width, 1.1 / k) }, xy, light, t.N / t.G.laps), L.opacity); }
   return c.toDataURL('image/jpeg', .82);
 }
 function loadDoc(data, meta) {
   stop(); coast = null; editId = null; rpQueue = []; rpN = 0;
-  layers = (data.layers || []).map(l => ({ ...l })); cur = data.cur ? { ...data.cur } : null;
+  layers = (data.layers || []).map(l => ({ ...l })); cur = data.cur ? { ...data.cur } : null; setTwo(data);
   if (data.paper) P.paper = { ...DEFAULT_PAPER, ...data.paper }; if (data.bg) P.bg = data.bg;
   if (!cur) cur = newLayer();
-  uid = Math.max(uid, ...layers.map(l => l.id + 1), cur.id + 1);
+  uid = Math.max(uid, ...allIds());
   Object.assign(S, pickS(cur)); past = []; future = [];
   doc = { ...meta }; savedHash = docHash();
   cam.z = 1; cam.x = cam.y = 0; fit(); mainRing.key = '';
@@ -1246,10 +1350,10 @@ const setDocFolder = folder => { doc.folder = folder; save(); };
 // the open drawing was deleted from the Sketchbook: it stays open, as an unsaved copy
 function detachDoc() { doc.id = null; savedHash = ''; syncDocTitle(); save(); }
 window.SpiroLab = { get layers() { return layers; }, get cur() { return cur; }, S, P, exportSVG, exportPNG, finish, newLayerFromCurrent, change,
-  adoptAdd, watchDoc, ringCache, drawPieces: (c, L, v, ring) => drawStencil(c, L, v, ring, false),
+  adoptAdd, watchDoc, watchCopy, inkForWatch, ringCache, drawPieces: (c, L, v, ring) => drawStencil(c, L, v, ring, false),
   // for the View menu (js/view.js)
   v: { view, cam, get cv() { return cv; }, PW, PH, MM, applyView, zoomBy, zoomTo, resetView, actualSize, rotateTo, toWorld, worldToDev, devToWorld,
-    toggleFullscreen, isFull: () => !!fsEl(), stencilCentres: () => layers.filter(l => l.visible).map(l => [l.cx, l.cy]),
-    persist: () => save(), get cur() { return cur; }, get layerCount() { return layers.length + (inked(cur) ? 1 : 0); }, pieceWords: L => pieceWords(L), redraw: () => { inkDirty = true; mainRing.key = ''; } },
+    toggleFullscreen, isFull: () => !!fsEl(), stencilCentres: () => [...layers.filter(l => l.visible).map(l => [l.cx, l.cy]), ...(other ? [[other.cur.cx, other.cur.cy]] : [])],
+    persist: () => save(), get cur() { return cur; }, get layerCount() { return layers.length + (inked(cur) ? 1 : 0) + (other && inked(other.cur) ? 1 : 0); }, pieceWords: L => pieceWords(L), redraw: () => { inkDirty = true; mainRing.key = ''; } },
   get doc() { return doc; }, docData, isDirtyDoc, thumbnail, loadDoc, newDoc, markSaved, renameDoc, setDocFolder, detachDoc, canvasName, toast: (m, bad) => toast(m, bad) };
 })();

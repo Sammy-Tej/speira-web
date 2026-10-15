@@ -439,10 +439,39 @@ body.infobar .hint { display: none; }
 /* hide the panel, or everything but the paper */
 body.nopanel .app { grid-template-columns: 1fr; }
 body.nopanel .panel { display: none; }
-body.noui .top, body.noui .panel, body.noui .zoombar, body.noui .stagebar, body.noui .hint { display: none !important; }
+body.noui .top, body.noui .panel, body.noui .zoombar, body.noui .stagebar, body.noui .setbar, body.noui .setkinds, body.noui .hint { display: none !important; }
 body.noui .app { grid-template-columns: 1fr; }
 body.noui { grid-template-rows: 0 minmax(0, 1fr); }
 
 .docinfo dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 4px 0 10px; font-size: 13px; }
 .docinfo dt { color: var(--faint); }
 .docinfo dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+
+/* two sets of pieces: a chip per set at the top of the paper (choose it, draw it, take it off), or "Second set" */
+.setbar { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 5; }
+body.rulers .setbar { top: 32px; }
+.setchip { display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(6px); }
+.setchip.on { border-color: var(--accent); background: var(--accent-soft); }
+.setpick { display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 6px; border: 0; border-radius: 999px; background: none; color: var(--text); font: 600 12px var(--ui); cursor: pointer; }
+.setpick small { color: var(--faint); font-weight: 500; }
+.setchip.on .setpick b { color: var(--accent); }
+.setpick .dot { width: 12px; height: 12px; }
+.setico { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text); cursor: pointer; }
+.setico:hover, .setpick:hover { background: var(--line); }
+.setico svg { width: 14px; height: 14px; }
+.setkinds { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); z-index: 6; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: 300px; padding: 12px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 16px 44px var(--shadow); }
+body.rulers .setkinds { top: 72px; }
+.setkinds p { grid-column: 1 / -1; margin: 0 0 4px; font: 600 12px var(--ui); color: var(--dim); }
+.setkinds button { height: 34px; border: 1px solid var(--line); border-radius: 9px; background: var(--desk); color: var(--text); font: 600 12px var(--ui); cursor: pointer; }
+.setkinds button:hover { border-color: var(--accent); }
+#paper.over-set { cursor: pointer; }
+/* the set bar sits where toasts appear, so with a set bar showing they drop below it */
+.stage:has(.setbar > *) #toast { top: 54px; z-index: 7; }
+body.rulers .stage:has(.setbar > *) #toast { top: 74px; }
+
+/* Just watch questions (start fresh or use my drawing, keep, leave) */
+.watch.asking { cursor: default; }
+.wask-btns { display: flex; flex-direction: column; gap: 8px; }
+.wkeep .wtog.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.wkeep .wtog.primary:hover { filter: brightness(1.08); }
