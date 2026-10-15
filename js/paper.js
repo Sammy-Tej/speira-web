@@ -21,13 +21,14 @@ const DEFAULT_PAPER = { preset: 'square', unit: 'mm', w: 250, h: 250, dpi: 300, 
 // paper size in world units
 function paperWorld(p) {
   if (p.unit === 'mm') return [p.w * MM, p.h * MM];
+  if (p.unit === 'cm') return [p.w * 10 * MM, p.h * 10 * MM];
   if (p.unit === 'in') return [p.w * 25.4 * MM, p.h * 25.4 * MM];
   const k = 1000 / Math.min(p.w, p.h); return [p.w * k, p.h * k];
 }
 // exported pixel size
 function paperPixels(p) {
   if (p.unit === 'px') return [Math.round(p.w * p.scale), Math.round(p.h * p.scale)];
-  const inch = p.unit === 'mm' ? 25.4 : 1;
+  const inch = p.unit === 'mm' ? 25.4 : p.unit === 'cm' ? 2.54 : 1;
   return [Math.round(p.w / inch * p.dpi), Math.round(p.h / inch * p.dpi)];
 }
 const fmtNum = v => +(+v).toFixed(2);

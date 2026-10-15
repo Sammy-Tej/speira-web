@@ -7,7 +7,7 @@ const PENS = ['#1b1b1f', '#e63946', '#f77f00', '#fcbf49', '#2a9d8f', '#3a86ff', 
 const PAPERS = [['#ffffff', 'White'], ['#f6f1e7', 'Cream'], ['#e8d8b9', 'Kraft'], ['#111114', 'Black card'], ['#14213d', 'Navy'], ['#2b2d42', 'Slate']];
 
 // ---------- state ----------
-const S = { angle: 0, base: 60, ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0, pen: 'ballpoint', rainbow: false };
+const S = { angle: 0, base: 60, ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0, pen: 'ballpoint', rainbow: false, custom: null };
 const P = { bg: '#ffffff', stencil: true, autoHide: true, ghost: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic', paper: { ...DEFAULT_PAPER }, svgMode: 'effects', exportFmt: 'png', jpgQ: .9, vidLen: 12, vidSize: 1080, vidPieces: false, folds: { pieces: true, pen: false, paper: false, layers: false } };
 const PW = () => paperWorld(P.paper)[0], PH = () => paperWorld(P.paper)[1];
 let layers = [], cur = null, playing = false, uid = 1;
@@ -66,7 +66,7 @@ function load() {
 
 // ---------- traces (cached per layer) ----------
 function tr(L) {
-  const key = [L.ring, L.mode, L.wheel, L.hole, L.shift, L.pitch, L.cx, L.cy, L.angle || 0, L.base || 60].join();
+  const key = [L.ring, L.mode, L.wheel, L.hole, L.shift, L.pitch, L.cx, L.cy, L.angle || 0, L.base || 60, L.custom ? L.custom.id : ''].join();
   if (L._key !== key) { L._tr = trace(L); L._key = key; }
   return L._tr;
 }
@@ -264,20 +264,23 @@ function trackEdgePath(c, K, cx, cy, teeth, h, tipSign, offset = 0) {
   c.closePath();
 }
 function paintRing(L, G, v, out, W, H) {
-  const key = [L.ring, L.pitch, L.cx, L.cy, L.angle || 0, L.base || 60, P.tint, v.s, v.ox, v.oy, v.r || 0, W, H].join();
+  const key = [L.ring, L.custom ? L.custom.id : '', L.pitch, L.cx, L.cy, L.angle || 0, L.base || 60, P.tint, v.s, v.ox, v.oy, v.r || 0, W, H].join();
   if (key === out.key) return;
   out.key = key; out.cv.width = W; out.cv.height = H;
   if (G.track) {
     // a band of acrylic with teeth on both edges, like the round rings: outer edge to roll round, inner edge to roll inside
     const c = out.cv.getContext('2d'), pc = G.ring, h = G.p * .55, rgb = TINTS[P.tint][0], ins = shapeInset(G.p);
-    const Ko = shapeTrack(pc, G.p, 0, G.track.ang), Ki = shapeTrack(pc, G.p, -ins, G.track.ang), To = pc.teeth, Ti = pc.teeth - SHAPE_GAP;
+    // your own shapes: the outline you drew; without an inner edge the band's inside is plain (it can't be rolled in)
+    const own = isCustom(L), ang = G.track.ang;
+    const Ko = own ? customTrack(L.custom, G.p, 0, ang) : shapeTrack(pc, G.p, 0, ang), Ki = own ? (L.custom.inner ? customTrack(L.custom, G.p, -ins, ang) : null) : shapeTrack(pc, G.p, -ins, ang);
+    const To = own ? L.custom.teeth : pc.teeth, Ti = To - SHAPE_GAP;
     c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); vT(c, v);
-    acrylic(c, () => { trackEdgePath(c, Ko, L.cx, L.cy, To, h, 1); trackEdgePath(c, Ki, L.cx, L.cy, Ti, h, -1); }, rgb, L.cx, L.cy, G.Rr, false, v);
+    acrylic(c, () => { trackEdgePath(c, Ko, L.cx, L.cy, To, h, 1); Ki ? trackEdgePath(c, Ki, L.cx, L.cy, Ti, h, -1) : trackEdgePath(c, Ko, L.cx, L.cy, 0, h, 1, -Math.min(ins, Ko.minR * .85)); }, rgb, L.cx, L.cy, G.Rr, false, v);
     // both tooth counts printed in the band, at whichever point of the outer edge faces up
     let best = 0, bd = 9; for (let i = 0; i < 360; i++) { const s = i / 360 * Ko.Lp, q = trackPoint(Ko, L.cx, L.cy, s); const d = Math.abs(Math.atan2(Math.sin(q[2] + Math.PI / 2), Math.cos(q[2] + Math.PI / 2))); if (d < bd) { bd = d; best = s; } }
     const [tx, ty, tp] = trackPoint(Ko, L.cx, L.cy, best), fs = clampN((ins - h) * .34, 7, 26), at = k => [tx - k * Math.cos(tp), ty - k * Math.sin(tp)];
     printed(c, String(To), ...at(h * .6 + fs * .7), fs * .85, 0, rgb, .6);
-    printed(c, String(Ti), ...at(ins - h * .6 - fs * .7), fs, 0, rgb);
+    if (Ki) printed(c, String(Ti), ...at(ins - h * .6 - fs * .7), fs, 0, rgb);
     return;
   }
   if (G.ring.base) {
@@ -603,7 +606,7 @@ function download(blob, name) {
 }
 const visibleInk = () => [...layers.filter(l => l.visible), ...(other ? [other.cur] : []), cur].filter(inked);
 const penName = L => (PEN_STYLES[L.pen] || PEN_STYLES.ballpoint).label;
-const pieceWords = L => isBase(L) ? `fixed ${L.base || 60}-tooth wheel` : isBar(L) ? pieceName(L.ring).toLowerCase() : isShape(L) ? `${pieceName(L.ring).toLowerCase()} ring` : `${pieceName(L.ring).replace(' / ', '/')} ring`;
+const pieceWords = L => isCustom(L) ? `${L.custom.name} (your shape, ${L.custom.teeth} teeth)` : isBase(L) ? `fixed ${L.base || 60}-tooth wheel` : isBar(L) ? pieceName(L.ring).toLowerCase() : isShape(L) ? `${pieceName(L.ring).toLowerCase()} ring` : `${pieceName(L.ring).replace(' / ', '/')} ring`;
 const describe = L => `${pieceWords(L)}, ${L.wheel}-tooth wheel ${L.mode}, hole ${L.hole + 1}, shift ${L.shift}, ${penName(L).toLowerCase()} pen${L.rainbow ? ', rainbow ink' : ''}`;
 // Douglas–Peucker on the dense trace: drops points that deviate less than `tol` paper units (1/25,000 of the page)
 function simplify(xs, ys, tol) {
@@ -634,7 +637,7 @@ function exportSVG(mode = P.svgMode) {
   out.push('<g clip-path="url(#paper)" fill="none" stroke-linecap="round" stroke-linejoin="round">');
   // one named group per Spiro Lab layer, so design apps show readable layer names
   visibleInk().forEach((L, i) => {
-    const plan = planOf(L), label = `Layer ${i + 1} · ${penName(L)}${L.rainbow ? ' rainbow' : ''} · ${pieceName(L.ring).replace(' / ', '/')} · wheel ${L.wheel} ${L.mode}`;
+    const plan = planOf(L), label = `Layer ${i + 1} · ${penName(L)}${L.rainbow ? ' rainbow' : ''} · ${pieceLabel(L).replace(' / ', '/')} · wheel ${L.wheel} ${L.mode}`;
     const id = `layer-${String(i + 1).padStart(2, '0')}-${penName(L).toLowerCase().replace(/[^a-z]+/g, '-')}-wheel-${L.wheel}-${L.mode}`;
     out.push(`<g id="${id}" data-name="${label}"><title>${label}</title><desc>${describe(L)}</desc>`);
     out.push(mode === 'plain' ? plainSVG(L, L._xy, simplify) : planToSVG(plan, L.opacity, simplify));
@@ -648,7 +651,7 @@ function exportSVG(mode = P.svgMode) {
 function exportPNG() { exportRaster('png'); }
 function exportRaster(fmt) {
   const [pw, ph] = paperPixels(P.paper), c = document.createElement('canvas'); c.width = pw; c.height = ph;
-  const x = c.getContext('2d'), tooBig = 'That size is too big for this browser. Pick a lower resolution next to the PNG button.';
+  const x = ctx2d(c), tooBig = 'That size is too big for this browser. Pick a lower resolution next to the PNG button.';
   if (!x || c.width !== pw) { toast(tooBig, true); return; }
   x.scale(pw / PW(), ph / PH());
   const opaque = fmt === 'jpg' || !P.transparent;   // JPG has no transparency
@@ -662,6 +665,16 @@ function exportRaster(fmt) {
 }
 
 // ---------- video: the drawing making itself ----------
+// Video settings belong to the drawing (set on the new canvas sheet, changeable in Export): size of the long side,
+// quality (how many bits per second) and HEVC where the browser can record it (Safari).
+const VIDEO_DEFAULT = { size: 1080, quality: 'good', hevc: false };
+const QUALITY = { low: .5, good: 1, studio: 2, lossless: 4 };   // browsers can't record truly lossless video: this is their best
+const vidSet = () => { const v = { ...VIDEO_DEFAULT, size: P.vidSize || 1080, ...(P.paper.video || {}) }; if (![1080, 1440, 2160].includes(+v.size)) v.size = 1080; return v; };
+const canHevc = () => !!(window.MediaRecorder && ['video/mp4;codecs=hvc1', 'video/mp4;codecs=hev1'].some(t => MediaRecorder.isTypeSupported(t)));
+// colour profile: Display P3 where the browser can make such canvases, otherwise sRGB
+let p3ok = null;
+const canP3 = () => { if (p3ok == null) { try { const x = document.createElement('canvas').getContext('2d', { colorSpace: 'display-p3' }); p3ok = !!(x && x.getContextAttributes && x.getContextAttributes().colorSpace === 'display-p3'); } catch { p3ok = false; } } return p3ok; };
+const ctx2d = c => c.getContext('2d', P.paper.profile === 'p3' && canP3() ? { colorSpace: 'display-p3' } : {});
 // Every visible layer is replayed in order at an even pen speed, onto a canvas that MediaRecorder films in real
 // time (MP4 in Safari, WebM where MP4 recording isn't offered). A short pause at the start and a hold at the end.
 let rec = null;
@@ -669,16 +682,16 @@ function exportVideo() {
   if (rec) return;
   const list = visibleInk();
   if (!list.length) { toast('Draw something first, then record it', true); return; }
-  const types = ['video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
+  const V = vidSet(), types = [...(V.hevc ? ['video/mp4;codecs=hvc1', 'video/mp4;codecs=hev1'] : []), 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm'];
   const mime = window.MediaRecorder && types.find(t => MediaRecorder.isTypeSupported(t));
   const probe = document.createElement('canvas');
   if (!mime || !probe.captureStream) { toast('This browser cannot record video. Try Safari or Chrome.', true); return; }
   stop();
   // size: the long side of the paper becomes 720 / 1080 / 2160 pixels (even numbers, as video needs)
-  const long = P.vidSize, k = long / Math.max(PW(), PH()), w = Math.round(PW() * k / 2) * 2, h = Math.round(PH() * k / 2) * 2;
+  const long = V.size, k = long / Math.max(PW(), PH()), w = Math.round(PW() * k / 2) * 2, h = Math.round(PH() * k / 2) * 2;
   const out = probe; out.width = w; out.height = h;
   const acc = document.createElement('canvas'); acc.width = w; acc.height = h;
-  const oc = out.getContext('2d'), ac2 = acc.getContext('2d'), s = w / PW();
+  const oc = ctx2d(out), ac2 = ctx2d(acc), s = w / PW();
   const v = { s, ox: 0, oy: 0, dpr: Math.max(1, Math.min(w, h) / 700) }, ring = ringCache();
   ac2.fillStyle = P.bg; ac2.fillRect(0, 0, w, h);
   const items = list.map(L => { const plan = planOf(L); resetPlanCursors(plan); return { L, plan, n: plan.xy.length / 2 }; });
@@ -702,7 +715,8 @@ function exportVideo() {
   }
   paint();
   const stream = out.captureStream(30), chunks = [];
-  const mr = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: long >= 2160 ? 40e6 : long >= 1080 ? 14e6 : 7e6 });
+  const base = long >= 2160 ? 40e6 : long >= 1440 ? 24e6 : long >= 1080 ? 14e6 : 7e6;
+  const mr = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: Math.round(base * (QUALITY[V.quality] || 1)) });
   mr.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
   let cancelled = false, raf = 0;
   const bar = $('#recBar'), prog = $('#recProg');
@@ -746,17 +760,18 @@ function chips(box, items, get, set, label = v => v, keepPos = false) {
   box._sync = () => [...box.children].forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v) === String(get())));
 }
 // rings, then bars; a bar only has teeth on the outside, so choosing one rolls the wheel round the outside
-chips($('#rings'), PIECES.map((_, i) => i), () => S.ring, (s, v) => { s.ring = +v; if (outsideOnly(s)) s.mode = 'outside'; fitWheel(s); }, v => pieceName(+v));
+chips($('#rings'), PIECES.map((_, i) => i).filter(i => i !== CUSTOM), () => S.ring, (s, v) => { s.ring = +v; s.custom = null; if (outsideOnly(s)) s.mode = 'outside'; fitWheel(s); }, v => pieceName(+v));
 chips($('#modes'), ['inside', 'outside'], () => S.mode, (s, v) => { if (!(outsideOnly(s) && v === 'inside')) s.mode = v; fitWheel(s); }, v => v === 'inside' ? 'Inside' : 'Outside');
 // the pinned wheel's size, shown only when Fixed wheel is the piece
 chips($('#bases'), WHEELS, () => S.base, (s, v) => { s.base = +v; });
 chips($('#wheels'), WHEELS, () => S.wheel, (s, v) => { s.wheel = +v; s.hole = Math.min(s.hole, holesFor(+v, s.pitch).length - 1); });
 // inside a shaped ring the wheel has to get round the tightest curve: only smaller wheels fit
-const wheelFits = (s, w) => !(isShape(s) && s.mode === 'inside') || radiusOf(w, s.pitch) < shapeSegments(PIECES[s.ring], s.pitch, -shapeInset(s.pitch)).minR * .98;
+// shaped rings and your own shapes: the wheel has to get round the tightest bend (corners inside, dents outside)
+const wheelFits = (s, w) => !(isShape(s) || isCustom(s)) || geom({ ...s, wheel: w }).fits !== false;
 function fitWheel(s) {
   if (wheelFits(s, s.wheel)) return;
   const w = [...WHEELS].reverse().find(x => wheelFits(s, x)) || WHEELS[0];
-  toast(`A ${s.wheel}-tooth wheel won't get round the inside of that shape, so the ${w} is on instead`);
+  toast(`A ${s.wheel}-tooth wheel won't get round ${s.mode === 'inside' ? 'the inside of that shape' : 'the dents in that shape'}, so the ${w} is on instead`);
   s.wheel = w; s.hole = Math.min(s.hole, holesFor(w, s.pitch).length - 1);
 }
 function swatches(box, list, get, set) {
@@ -881,7 +896,8 @@ function syncExport() {
   $('#fmtNote').textContent = FMT_NOTES[f];
   $('#jpgQ').value = P.jpgQ; $('#jpgQOut').textContent = Math.round(P.jpgQ * 100) + '%';
   $('#doExport span').textContent = f === 'video' ? 'Record video' : 'Save ' + f.toUpperCase();
-  $('#vidLen').value = P.vidLen; $('#vidSize').value = P.vidSize; $('#vidPieces').checked = P.vidPieces;
+  const V = vidSet(); $('#vidLen').value = P.vidLen; $('#vidSize').value = V.size; $('#vidQuality').value = V.quality; $('#vidPieces').checked = P.vidPieces;
+  $('#vidHevc').checked = V.hevc && canHevc(); $('#vidHevc').disabled = !canHevc(); $('#vidHevcRow').title = canHevc() ? 'HEVC: smaller files at the same quality' : 'This browser can\'t record HEVC (Safari can)';
   fillRanges(panel);
 }
 function exportNow() { if (P.exportFmt === 'svg') exportSVG(P.svgMode); else if (P.exportFmt === 'video') exportVideo(); else exportRaster(P.exportFmt); }
@@ -894,13 +910,21 @@ panel.querySelectorAll('[data-fmt]').forEach(b => b.addEventListener('click', ()
 panel.querySelectorAll('[data-svg]').forEach(b => b.addEventListener('click', () => { P.svgMode = b.dataset.svg; syncExport(); save(); }));
 bind('#jpgQ', 'input', e => { P.jpgQ = +e.target.value; syncExport(); save(); });
 bind('#vidLen', 'change', e => { P.vidLen = +e.target.value; save(); });
-bind('#vidSize', 'change', e => { P.vidSize = +e.target.value; save(); });
+const setVid = o => { P.paper.video = { ...vidSet(), ...o }; save(); dirty(); };
+bind('#vidSize', 'change', e => setVid({ size: +e.target.value }));
+bind('#vidQuality', 'change', e => setVid({ quality: e.target.value }));
+bind('#vidHevc', 'change', e => setVid({ hevc: e.target.checked }));
 bind('#vidPieces', 'change', e => { P.vidPieces = e.target.checked; save(); });
 bind('#recCancel', 'click', () => { if (rec) rec.cancel(); });
 bind('#doExport', 'click', () => { exportNow(); openExport(false); });
 // close when clicking anywhere else (capture phase, so the drawing canvas can't swallow it) or pressing Esc
 document.addEventListener('pointerdown', e => { if (!panel.hidden && !panel.contains(e.target) && !exportBtn.contains(e.target)) openExport(false); }, true);
 panel.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); openExport(false); exportBtn.focus(); } });
+// a length in one paper unit, in another (pixels go through the print resolution)
+function convertUnit(v, from, to, dpi) {
+  const inch = { in: 1, mm: 25.4, cm: 2.54, px: dpi }, i = v / inch[from];
+  return to === 'px' ? Math.round(i * dpi) : to === 'mm' ? Math.round(i * 25.4) : +(i * inch[to]).toFixed(2);
+}
 // paper size: when the sheet changes, everything stays centred on it
 function setPaper(fn) {
   stop();
@@ -918,7 +942,7 @@ presetSel.addEventListener('change', () => setPaper(p => {
   if (pr.unit) { const land = p.w > p.h; p.unit = pr.unit; [p.w, p.h] = land && pr.w !== pr.h ? [pr.h, pr.w] : [pr.w, pr.h]; }
 }));
 bind('#orient', 'click', () => setPaper(p => { [p.w, p.h] = [p.h, p.w]; }));
-const LIMITS = { mm: [20, 2000], in: [1, 80], px: [100, 16384] };
+const LIMITS = { mm: [20, 2000], cm: [2, 200], in: [1, 80], px: [100, 16384] };
 const customSize = () => setPaper(p => {
   const u = $('#punit').value, [lo, hi] = LIMITS[u];
   p.preset = 'custom'; p.unit = u; p.w = clampN(+$('#pw').value || lo, lo, hi); p.h = clampN(+$('#ph').value || lo, lo, hi);
@@ -926,8 +950,7 @@ const customSize = () => setPaper(p => {
 bind('#pw', 'change', customSize); bind('#ph', 'change', customSize);
 bind('#punit', 'change', () => setPaper(p => {
   // convert the current size into the new unit, using the print resolution for pixels
-  const toIn = (v, u) => u === 'in' ? v : u === 'mm' ? v / 25.4 : v / p.dpi, u = $('#punit').value;
-  const conv = v => { const i = toIn(v, p.unit); return u === 'in' ? +i.toFixed(2) : u === 'mm' ? Math.round(i * 25.4) : Math.round(i * p.dpi); };
+  const u = $('#punit').value, conv = v => convertUnit(v, p.unit, u, p.dpi);
   p.preset = 'custom'; [p.w, p.h] = [conv(p.w), conv(p.h)]; p.unit = u;
 }));
 bind('#pngSize', 'change', e => { const v = +e.target.value; if (P.paper.unit === 'px') P.paper.scale = v; else P.paper.dpi = v; syncControls(); save(); });
@@ -1027,7 +1050,7 @@ function syncControls() {
   $('#sound').value = P.sound; $('#soundOut').textContent = P.sound ? Math.round(P.sound * 100) + '%' : 'Off';
   $('#mute').setAttribute('aria-pressed', P.sound === 0); $('#mute').title = P.sound ? 'Mute clicks' : 'Unmute clicks'; $('#transparent').checked = P.transparent;
   document.documentElement.style.setProperty('--pen', S.color);
-  syncInkWarning(); readout(); syncPlay();
+  syncInkWarning(); readout(); syncPlay(); renderMyShapes();
 }
 function syncPlay() {
   const b = $('#play'); b.setAttribute('aria-pressed', playing);
@@ -1044,7 +1067,7 @@ function readout() {
 }
 // ---------- layer list: show/hide, delete, edit a finished pass, drag to reorder ----------
 let editId = null, editArmed = false;
-const layerTitle = L => `${pieceName(L.ring).replace(' / ', '/')} · ${L.wheel} wheel`;
+const layerTitle = L => `${pieceLabel(L).replace(' / ', '/')} · ${L.wheel} wheel`;
 const layerSub = L => `${penName(L)}${L.rainbow ? ' rainbow' : ''} · ${L.mode} · hole ${L.hole + 1} · shift ${L.shift}`;
 function refreshRow(li, L) {
   li.querySelector('.dot').className = 'dot' + (L.rainbow ? ' rainbow' : ''); li.querySelector('.dot').style.setProperty('--c', L.color);
@@ -1074,7 +1097,7 @@ function readRecipe(text) {
     const v = JSON.parse(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')));
     if (!Array.isArray(v) || v.length < RECIPE_KEYS.length - 2 || v.length > RECIPE_KEYS.length) return null;   // older codes have no angle or base
     const o = Object.fromEntries(RECIPE_KEYS.map((k, i) => [k, v[i]])); o.angle = +o.angle || 0;
-    const ok = PIECES[o.ring] && ['inside', 'outside'].includes(o.mode) && WHEELS.includes(o.wheel) && Number.isInteger(o.hole) && o.hole >= 0 &&
+    const ok = PIECES[o.ring] && o.ring !== CUSTOM && ['inside', 'outside'].includes(o.mode) && WHEELS.includes(o.wheel) && Number.isInteger(o.hole) && o.hole >= 0 &&
       Number.isFinite(o.shift) && o.pitch > 0 && o.pitch < 200 && PEN_STYLES[o.pen] && /^#[0-9a-f]{6}$/i.test(o.color) && o.width > 0 && o.opacity > 0 && o.opacity <= 1;
     if (!ok) return null;
     o.hole = Math.min(o.hole, holesFor(o.wheel, o.pitch).length - 1); o.rainbow = !!o.rainbow; if (outsideOnly(o) || !wheelFits(o, o.wheel)) o.mode = 'outside'; o.base = WHEELS.includes(+o.base) ? +o.base : 60;
@@ -1082,6 +1105,7 @@ function readRecipe(text) {
   } catch { return null; }
 }
 function copyRecipe(L) {
+  if (isCustom(L)) { toast('Recipes can\'t carry your own shapes yet. Save the drawing, or share a .speira file', true); return; }
   const txt = recipeOf(L);
   (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast('Recipe copied: paste it anywhere, or back into Speira with ⌘V'), () => toast('Could not reach the clipboard', true));
 }
@@ -1211,6 +1235,7 @@ addEventListener('keydown', e => {
   else if (e.key === '?' && window.SpeiraHelp) { e.preventDefault(); SpeiraHelp.open(); }
   else if (e.key === 'l') { stop(); setPen(!penUp); }
   else if (e.key === 's' && other) swapSets();
+  else if (e.key === 'n' && window.SpeiraBook) SpeiraBook.newCanvas(doc.folder);
   else if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && !e.target.matches('input, select, textarea, .grip')) {
     // roll the wheel with the keyboard: one tooth per press (hold to keep rolling), Shift for ten
     e.preventDefault(); stop();
@@ -1226,10 +1251,25 @@ addEventListener('keydown', e => {
   else if (e.key === '.') change(s => s.shift = (s.shift + 1) % 1000);
 });
 
+// ---------- your own shapes (made in the shape maker, kept in My shapes) ----------
+function useShape(shape) {
+  if (!shape) return;
+  change(s => { s.ring = CUSTOM; s.custom = shape; s.angle = 0; if (!shape.inner) s.mode = 'outside'; fitWheel(s); });
+  toast(`${shape.name} is on the paper: ${shape.teeth} teeth${shape.inner ? `, ${shape.teeth - SHAPE_GAP} on the inside` : ''}`);
+}
+function renderMyShapes() {
+  const box = $('#myShapes'); if (!box || !window.SpeiraBook) return;
+  const list = SpeiraBook.shapes();
+  box.innerHTML = list.map(r => `<button type="button" class="chip" data-shape="${r.id}" aria-pressed="${isCustom(S) && S.custom.id === r.shape.id}">${r.name.replace(/[<&"]/g, '')}</button>`).join('')
+    + '<button type="button" class="chip" id="drawShape"><svg aria-hidden="true"><use href="#i-pencil-simple"/></svg>Draw a shape…</button>';
+  box.querySelectorAll('[data-shape]').forEach(b => b.addEventListener('click', () => useShape(SpeiraBook.shapes().find(r => r.id === b.dataset.shape)?.shape)));
+  $('#drawShape').addEventListener('click', () => window.SpeiraShapes && SpeiraShapes.open());
+}
+
 // ---------- two sets of pieces ----------
 // The kinds you can add as a second set: the piece each starts with
 const SET_KINDS = [['Round ring', 1], ['Bar', 3], ['Oval', 4], ['Triangle', 5], ['Square', 6], ['Fixed wheel', PIECES.length - 1]];
-const kindName = L => isBase(L) ? 'Fixed wheel' : isBar(L) ? 'Bar' : isShape(L) ? PIECES[L.ring].name : 'Round ring';
+const kindName = L => isCustom(L) ? L.custom.name : isBase(L) ? 'Fixed wheel' : isBar(L) ? 'Bar' : isShape(L) ? PIECES[L.ring].name : 'Round ring';
 // how far a set's pieces reach from their centre (the wheel's far edge, or the ring's outer edge)
 function reach(L) { const G = geom(L), ring = G.ring && G.ring.outer && !G.ring.base ? radiusOf(G.ring.outer, G.p) : 0; return Math.max(G.c + G.rr, ring, G.Rr || 0); }
 // a touch on the other set's pieces (and not on the selected wheel) chooses that set
@@ -1343,7 +1383,12 @@ function loadDoc(data, meta) {
   syncControls(); dirty();
 }
 // a fresh sheet: same paper and pieces as now, nothing drawn yet
-const newDoc = folder => loadDoc({ layers: [], paper: P.paper, bg: P.bg }, { id: null, name: canvasName(), folder: folder || 'mine' });
+const newDoc = (folder, o = {}) => {
+  if (o.transparent != null) P.transparent = o.transparent;
+  loadDoc({ layers: [], paper: o.paper || P.paper, bg: o.bg || P.bg }, { id: null, name: o.name || canvasName(), folder: folder || 'mine' });
+  // the pieces go back to the middle of the new sheet
+  S.cx = cur.cx = PW() / 2; S.cy = cur.cy = PH() / 2; mainRing.key = ''; dirty();
+};
 function markSaved(meta) { doc = { ...meta }; savedHash = docHash(); syncDocTitle(); save(); }
 function renameDoc(name) { doc.name = name; syncDocTitle(); save(); }
 const setDocFolder = folder => { doc.folder = folder; save(); };
@@ -1355,5 +1400,6 @@ window.SpiroLab = { get layers() { return layers; }, get cur() { return cur; }, 
   v: { view, cam, get cv() { return cv; }, PW, PH, MM, applyView, zoomBy, zoomTo, resetView, actualSize, rotateTo, toWorld, worldToDev, devToWorld,
     toggleFullscreen, isFull: () => !!fsEl(), stencilCentres: () => [...layers.filter(l => l.visible).map(l => [l.cx, l.cy]), ...(other ? [[other.cur.cx, other.cur.cy]] : [])],
     persist: () => save(), get cur() { return cur; }, get layerCount() { return layers.length + (inked(cur) ? 1 : 0) + (other && inked(other.cur) ? 1 : 0); }, pieceWords: L => pieceWords(L), redraw: () => { inkDirty = true; mainRing.key = ''; } },
+  papers: PAPERS, useShape, renderMyShapes, canP3, canHevc, vidSet, get transparent() { return P.transparent; },
   get doc() { return doc; }, docData, isDirtyDoc, thumbnail, loadDoc, newDoc, markSaved, renameDoc, setDocFolder, detachDoc, canvasName, toast: (m, bad) => toast(m, bad) };
 })();

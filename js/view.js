@@ -8,7 +8,7 @@
 const $ = s => document.querySelector(s);
 const A = window.SpiroLab, V = A.v, P = A.P;
 const DEF = { rulers: false, guides: true, lockGuides: false, snap: true, smart: true, overlays: true,
-  grid: false, gridStep: { mm: 10, in: .5, px: 100 }, centre: false, thirds: false, margins: false, marginSize: { mm: 10, in: .5, px: 50 },
+  grid: false, gridStep: { mm: 10, cm: 1, in: .5, px: 100 }, centre: false, thirds: false, margins: false, marginSize: { mm: 10, cm: 1, in: .5, px: 50 },
   info: false, hidePanel: false, hideUI: false };
 P.view = { ...DEF, ...(P.view || {}) }; if (P.autoCentre === undefined) P.autoCentre = true;
 P.guides = P.guides || []; P.guideSets = P.guideSets || [];
@@ -17,12 +17,13 @@ const persist = () => V.persist();
 
 // ---------- units: the paper's own (mm, inches or pixels) ----------
 const unit = () => P.paper.unit;
-const perUnit = () => unit() === 'mm' ? V.MM : unit() === 'in' ? 25.4 * V.MM : V.PW() / P.paper.w;   // paper units per world unit
+const perUnit = () => unit() === 'mm' ? V.MM : unit() === 'cm' ? 10 * V.MM : unit() === 'in' ? 25.4 * V.MM : V.PW() / P.paper.w;   // paper units per world unit
 const toU = w => w / perUnit(), fromU = u => u * perUnit();
-const fmtU = w => { const v = toU(w); return unit() === 'px' ? `${Math.round(v)} px` : unit() === 'in' ? `${v.toFixed(2)} in` : `${(Math.round(v * 10) / 10)} mm`; };
-const GRID_OPTS = { mm: [5, 10, 20, 25, 50], in: [.25, .5, 1], px: [50, 100, 200, 500] };
-const MARGIN_OPTS = { mm: [5, 10, 15, 20], in: [.25, .5, .75, 1], px: [25, 50, 100] };
-const gridStep = () => fromU(VS.gridStep[unit()]), marginSize = () => fromU(VS.marginSize[unit()]);
+const fmtU = w => { const v = toU(w); return unit() === 'px' ? `${Math.round(v)} px` : unit() === 'in' ? `${v.toFixed(2)} in` : unit() === 'cm' ? `${(Math.round(v * 100) / 100)} cm` : `${(Math.round(v * 10) / 10)} mm`; };
+const GRID_OPTS = { mm: [5, 10, 20, 25, 50], cm: [.5, 1, 2, 5], in: [.25, .5, 1], px: [50, 100, 200, 500] };
+const MARGIN_OPTS = { mm: [5, 10, 15, 20], cm: [.5, 1, 1.5, 2], in: [.25, .5, .75, 1], px: [25, 50, 100] };
+// settings saved before centimetres existed have no cm entry yet
+const gridStep = () => fromU(VS.gridStep[unit()] ?? 1), marginSize = () => fromU(VS.marginSize[unit()] ?? 1);
 const straight = () => Math.abs(V.view.r) < 1e-6;
 
 // ---------- snapping ----------
@@ -119,7 +120,7 @@ function drawRulers() {
     c.fillStyle = lineC; horiz ? c.fillRect(0, rs - dpr, cnv.width, dpr) : c.fillRect(rs - dpr, 0, dpr, cnv.height);
     if (!straight()) { c.fillStyle = fg; c.font = `${10 * dpr}px system-ui, sans-serif`; c.textBaseline = 'middle'; if (horiz) c.fillText('Rulers line up again when the view is straight', 30 * dpr, rs / 2); continue; }
     const pu = perUnit(), pxPerUnit = v.s * pu / dpr;
-    const steps = unit() === 'in' ? [.125, .25, .5, 1, 2, 5, 10, 20, 50] : [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+    const steps = unit() === 'in' ? [.125, .25, .5, 1, 2, 5, 10, 20, 50] : unit() === 'cm' ? [.1, .2, .5, 1, 2, 5, 10, 20, 50, 100] : [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
     const major = steps.find(st => st * pxPerUnit >= 64) || steps[steps.length - 1];
     const sub = [10, 5, 4, 2, 1].find(n => major / n * pxPerUnit >= 7 && (unit() === 'in' ? [8, 4, 2, 1].includes(n) || n === 4 : n !== 4)) || 1;
     const minor = major / sub, len = horiz ? cv.width : cv.height;

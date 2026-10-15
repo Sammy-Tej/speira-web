@@ -96,33 +96,44 @@ async function saveNew(data, name = L.canvasName(), folder = 'mine') {
   const now = Date.now(), rec = { id: uid(), name, folder, created: now, modified: now, deletedAt: null, thumb: L.thumbnail(data), data };
   await saveRec(rec); render(); return name;
 }
+// ---------- your own shapes: kept like drawings, in My shapes, as { kind: 'shape', shape } ----------
+const shapes = () => live().filter(r => r.kind === 'shape').sort((a, b) => b.modified - a.modified);
+async function saveShape(shape, thumb) {
+  const now = Date.now(), name = uniqueName(shape.name), rec = { id: uid(), kind: 'shape', name, folder: 'shapes', created: now, modified: now, deletedAt: null, thumb, shape: { ...shape, name } };
+  await saveRec(rec); render(); L.renderMyShapes(); return rec;
+}
 async function openRec(id) {
   const r = items.get(id); if (!r || r.deletedAt) return;
+  if (r.kind === 'shape') { L.useShape(r.shape); hide(); return; }
   if (r.id === L.doc.id) { hide(); return; }
   if (!(await okToLeave())) return;
   L.loadDoc(r.data, { id: r.id, name: r.name, folder: r.folder }); hide();
 }
+// a new drawing: first the new canvas sheet (name, size, background, colour profile, video), then a blank sheet
 async function newCanvas(folder) {
   if (!(await okToLeave())) return;
-  L.newDoc(folder && folder !== 'trash' && folder !== 'shapes' ? folder : 'mine'); hide();
-  L.toast('A fresh sheet. Press Save (⌘S) to keep it in your Sketchbook.');
+  hide();
+  await window.SpeiraNewSheet.open(folder && folder !== 'trash' && folder !== 'shapes' ? folder : 'mine');
 }
 
 // ---------- tidying ----------
 async function rename(id, name) {
   name = name.trim(); if (!name) return;
-  const r = items.get(id); if (r) { r.name = name; await saveRec(r); }
+  const r = items.get(id); if (r) { r.name = name; if (r.kind === 'shape') r.shape = { ...r.shape, name }; await saveRec(r); }
   if (id === L.doc.id) L.renameDoc(name);
-  render();
+  render(); L.renderMyShapes();
 }
-async function duplicate(id) { const r = items.get(id), now = Date.now(); await saveRec({ ...r, id: uid(), name: uniqueName(r.name + ' copy'), created: now, modified: now }); render(); }
+async function duplicate(id) {
+  const r = items.get(id), now = Date.now(), name = uniqueName(r.name + ' copy');
+  await saveRec({ ...r, id: uid(), name, created: now, modified: now, ...(r.kind === 'shape' ? { shape: { ...r.shape, id: uid(), name } } : {}) }); render(); L.renderMyShapes();
+}
 async function move(id, folder) { const r = items.get(id); r.folder = folder; await saveRec(r); if (id === L.doc.id) L.setDocFolder(folder); render(); }
 async function trash(id) {
   const r = items.get(id); r.deletedAt = Date.now(); await saveRec(r);
   if (id === L.doc.id) L.detachDoc();   // still open, but now an unsaved copy
-  L.toast(`“${r.name}” moved to Recently deleted. It stays there for ${KEEP_DELETED} days.`); render();
+  L.toast(`“${r.name}” moved to Recently deleted. It stays there for ${KEEP_DELETED} days.`); render(); L.renderMyShapes();
 }
-async function restore(id) { const r = items.get(id); r.deletedAt = null; if (!allFolders().some(f => f.id === r.folder)) r.folder = 'mine'; await saveRec(r); render(); }
+async function restore(id) { const r = items.get(id); r.deletedAt = null; if (!allFolders().some(f => f.id === r.folder)) r.folder = 'mine'; await saveRec(r); render(); L.renderMyShapes(); }
 async function deleteNow(id) {
   const r = items.get(id);
   if (await ask(`Delete “${r.name}” for good?`, 'You can\'t undo this.', [{ label: 'Delete', value: 'yes', danger: true }, { label: 'Cancel', value: 'no', primary: true }]) !== 'yes') return;
@@ -205,8 +216,11 @@ function render() {
   }
 
   grid.innerHTML = '';
-  if (view === 'shapes') { grid.innerHTML = '<p class="bempty">Shapes you make yourself will live here. Making your own shapes is coming soon.</p>'; return; }
-  if (view !== 'trash') {
+  if (view === 'shapes') {
+    const n = document.createElement('button'); n.type = 'button'; n.className = 'bcard bnew';
+    n.innerHTML = '<span class="bthumb"><svg><use href="#i-pencil-simple"/></svg></span><span class="bname">New shape</span><span class="bdate">Draw your own piece</span>';
+    n.addEventListener('click', () => { hide(); window.SpeiraShapes.open(); }); grid.appendChild(n);
+  } else if (view !== 'trash') {
     const n = document.createElement('button'); n.type = 'button'; n.className = 'bcard bnew';
     n.innerHTML = '<span class="bthumb"><svg><use href="#i-plus"/></svg></span><span class="bname">New canvas</span><span class="bdate">A fresh sheet</span>';
     n.addEventListener('click', () => newCanvas(view)); grid.appendChild(n);
@@ -214,12 +228,14 @@ function render() {
   if (!list.length && view === 'trash') grid.innerHTML = '<p class="bempty">Nothing here. Drawings you delete wait here for 30 days in case you change your mind.</p>';
   for (const r of list) {
     const c = document.createElement('div'); c.className = 'bcard' + (r.id === L.doc.id ? ' open' : '');
-    c.innerHTML = `<button type="button" class="bthumb" aria-label="Open ${esc(r.name)}"><img alt="" src="${r.thumb}"></button>
+    c.innerHTML = `<button type="button" class="bthumb" aria-label="${r.kind === 'shape' ? 'Use' : 'Open'} ${esc(r.name)}"><img alt="" src="${r.thumb}"></button>
       <span class="bname">${esc(r.name)}</span>
-      <span class="bdate">${view === 'trash' ? `Deleted ${stampOf(r.deletedAt)} · ${daysLeft(r)} days left` : (r.id === L.doc.id ? 'Open now · ' : '') + 'Saved ' + stampOf(r.modified)}</span>
+      <span class="bdate">${view === 'trash' ? `Deleted ${stampOf(r.deletedAt)} · ${daysLeft(r)} days left` : r.kind === 'shape' ? `${r.shape.teeth} teeth${r.shape.inner ? ` · ${r.shape.teeth - 24} inside` : ''}` : (r.id === L.doc.id ? 'Open now · ' : '') + 'Saved ' + stampOf(r.modified)}</span>
       <button type="button" class="ico bmore" aria-label="More for ${esc(r.name)}"><svg><use href="#i-dots-three"/></svg></button>`;
     const opts = view === 'trash'
       ? [['Put back', () => restore(r.id)], ['Delete now', () => deleteNow(r.id), true]]
+      : r.kind === 'shape'
+      ? [['Use it', () => openRec(r.id)], ['Rename', () => startRename(c.querySelector('.bname'), r.name, n => rename(r.id, n))], ['Duplicate', () => duplicate(r.id)], ['Delete', () => trash(r.id), true]]
       : [['Open', () => openRec(r.id)], ['Rename', () => startRename(c.querySelector('.bname'), r.name, n => rename(r.id, n))], ['Duplicate', () => duplicate(r.id)],
          ...allFolders().filter(f => f.id !== r.folder && f.id !== 'shapes').map(f => [`Move to ${f.name}`, () => move(r.id, f.id)]),
          ['Save as file', () => saveFile(r.id)], ['Delete', () => trash(r.id), true]];
@@ -271,5 +287,5 @@ $('#docName').addEventListener('click', () => {
   inp.addEventListener('blur', () => finish(true));
 });
 
-window.SpeiraBook = { show, hide, save, saveNew, newCanvas, info: id => items.get(id), ready: (async () => { db = await idb(); try { await loadAll(); } catch { db = null; await loadAll(); } await purgeOld(); })() };
+window.SpeiraBook = { show, hide, save, saveNew, newCanvas, shapes, saveShape, info: id => items.get(id), ready: (async () => { db = await idb(); try { await loadAll(); } catch { db = null; await loadAll(); } await purgeOld(); L.renderMyShapes(); })() };
 })();

@@ -89,6 +89,32 @@
     </div>
   </div>
 </div>
+<div class="shapemaker" id="shapeMaker" role="dialog" aria-modal="true" aria-labelledby="smTitle" hidden>
+  <div class="smbox">
+    <div class="smhead"><h3 id="smTitle">Draw a shape</h3><p>Draw the outline of a new piece. Speira smooths it, works out its teeth, and checks a wheel can really roll round it.</p></div>
+    <div class="smmain">
+      <canvas id="smCv" tabindex="0" aria-label="Drawing area: draw the outline of your shape"></canvas>
+      <div class="smside">
+        <label class="field"><span class="lbl">Name</span><input type="text" id="smName" maxlength="40" autocomplete="off"></label>
+        <label class="row"><span>Smoothness</span><input type="range" id="smSmooth" min="3" max="16" step="1"><output id="smSmoothOut"></output></label>
+        <label class="row"><span>Size</span><input type="range" id="smSize" min="60" max="240" step="1"><output id="smSizeOut"></output></label>
+        <label class="check"><input type="checkbox" id="smInner"> Toothed inner edge too</label>
+        <small class="smnote" id="smInnerNote"></small>
+        <p class="smstatus" id="smStatus" role="status" aria-live="polite"></p>
+        <div class="btnrow smbtns">
+          <button class="btn" type="button" id="smClear">Start again</button>
+          <button class="btn" type="button" id="smCancel">Cancel</button>
+          <button class="btn primary" type="button" id="smSave">Save and use it</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="bookask newsheet" id="newSheet" role="dialog" aria-modal="true" aria-labelledby="nsTitle" hidden>
+  <h3 id="nsTitle">New canvas</h3>
+  <div class="ns-body"></div>
+  <div class="bookaskrow"><button class="btn" type="button" id="nsCancel">Cancel</button><button class="btn primary" type="button" id="nsCreate">Create</button></div>
+</div>
 <div class="bookask docinfo" id="docInfo" role="dialog" aria-label="Drawing info" hidden><h3>Drawing info</h3><dl></dl><div class="bookaskrow"><button class="btn primary" type="button">Done</button></div></div>
 <div class="bookmenu" id="bookMenu" role="menu" hidden></div>
 <div class="bookask" id="bookAsk" role="alertdialog" aria-modal="true" hidden><h3></h3><p></p><div class="bookaskrow"></div></div>
@@ -135,7 +161,9 @@
       </div>
       <label class="opt check" data-for="png svg"><input type="checkbox" id="transparent"> Transparent background</label>
       <label class="opt row" data-for="video"><span>Length</span><select id="vidLen" aria-label="Video length"><option value="6">6 seconds</option><option value="12">12 seconds</option><option value="20">20 seconds</option><option value="30">30 seconds</option></select><span></span></label>
-      <label class="opt row" data-for="video"><span>Size</span><select id="vidSize" aria-label="Video size"><option value="720">720p</option><option value="1080">1080p</option><option value="2160">4K</option></select><span></span></label>
+      <label class="opt row" data-for="video"><span>Size</span><select id="vidSize" aria-label="Video size"><option value="1080">1080p</option><option value="1440">2K</option><option value="2160">4K</option></select><span></span></label>
+      <label class="opt row" data-for="video"><span>Quality</span><select id="vidQuality" aria-label="Video quality"><option value="low">Low</option><option value="good">Good</option><option value="studio">Studio</option><option value="lossless">Lossless</option></select><span></span></label>
+      <label class="opt check" data-for="video" id="vidHevcRow"><input type="checkbox" id="vidHevc"> HEVC <small>smaller files (Safari)</small></label>
       <label class="opt check" data-for="video"><input type="checkbox" id="vidPieces"> Show the pieces turning</label>
       <button class="btn primary" id="doExport" type="button"><svg><use href="#i-download-simple"/></svg><span>Save</span></button>
     </div>
@@ -209,6 +237,7 @@
       <summary><h2>Pieces</h2><svg class="chev" aria-hidden="true"><use href="#i-caret-down"/></svg></summary>
       <div class="foldbody">
       <div class="field"><span class="lbl">Piece <small>round rings (teeth inside / outside), bars, shapes, or a wheel</small></span><div class="chips two" id="rings"></div></div>
+      <div class="field"><span class="lbl">Your shapes <small>draw your own piece; it is kept in My shapes</small></span><div class="chips myshapes" id="myShapes"></div></div>
       <div class="field" id="baseRow" hidden><span class="lbl">Fixed wheel <small>teeth on the wheel pinned to the paper</small></span><div class="chips grid" id="bases"></div></div>
       <div class="field"><span class="lbl">Wheel rolls</span><div class="chips two" id="modes"></div></div>
       <div class="field"><span class="lbl">Wheel <small>teeth</small></span><div class="chips grid" id="wheels"></div></div>
@@ -247,7 +276,7 @@
       <div class="field"><span class="lbl">Size</span><select id="paperPreset" class="wide"></select></div>
       <div class="custompaper" id="customPaper" hidden>
         <input type="number" id="pw" step="any" aria-label="Paper width"><span>×</span><input type="number" id="ph" step="any" aria-label="Paper height">
-        <select id="punit" aria-label="Unit"><option value="mm">mm</option><option value="in">in</option><option value="px">px</option></select>
+        <select id="punit" aria-label="Unit"><option value="mm">mm</option><option value="cm">cm</option><option value="in">in</option><option value="px">px</option></select>
       </div>
       <div class="paperrow"><button class="btn sm" id="orient" type="button">Rotate page</button><small id="paperDims"></small></div>
       <div class="field"><span class="lbl">Texture</span><div class="chips texrow" id="textures"></div></div>
@@ -275,6 +304,8 @@
 <script src="js/help-content.js"></script>
 <script src="js/help.js"></script>
 <script src="js/book.js"></script>
+<script src="js/newsheet.js"></script>
+<script src="js/shapes.js"></script>
 <script src="js/view.js"></script>
 </body>
 </html>

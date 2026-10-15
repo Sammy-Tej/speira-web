@@ -30,14 +30,21 @@ const SHAPES = [
 const SHAPE_GAP = 24;
 // Wheel on wheel: a wheel pinned to the paper (any size from the wheel set, chosen per layer as `base`),
 // with the drawing wheel rolling round its outside.
-const PIECES = [...RINGS.map(r => ({ kind: 'ring', ...r })), ...BARS, ...SHAPES, { id: 'base', kind: 'base', name: 'Wheel' }];
+// Your own shapes (drawn freehand in the shape maker) are the last piece: the outline itself travels with the layer
+// as L.custom = { id, name, teeth, inner, pts }, where pts is a smooth closed outline whose length is exactly `teeth`
+// at a kit size (pitch) of 1, going round so that its outward side is on the right (like the built-in shapes).
+const PIECES = [...RINGS.map(r => ({ kind: 'ring', ...r })), ...BARS, ...SHAPES, { id: 'base', kind: 'base', name: 'Wheel' }, { id: 'custom', kind: 'custom', name: 'My shape' }];
+const CUSTOM = PIECES.length - 1;
 const barTeeth = b => 2 * b.straight + 2 * b.end;
-const pieceName = i => { const pc = PIECES[i]; return pc.kind === 'base' ? 'Fixed wheel' : pc.kind === 'bar' ? `Bar ${barTeeth(pc)}` : pc.kind === 'shape' ? `${pc.name} ${pc.teeth - SHAPE_GAP} / ${pc.teeth}` : `${pc.inner} / ${pc.outer}`; };
+const pieceName = i => { const pc = PIECES[i]; return pc.kind === 'custom' ? 'My shape' : pc.kind === 'base' ? 'Fixed wheel' : pc.kind === 'bar' ? `Bar ${barTeeth(pc)}` : pc.kind === 'shape' ? `${pc.name} ${pc.teeth - SHAPE_GAP} / ${pc.teeth}` : `${pc.inner} / ${pc.outer}`; };
 const isBar = L => PIECES[L.ring] && PIECES[L.ring].kind === 'bar';
 const isShape = L => PIECES[L.ring] && PIECES[L.ring].kind === 'shape';
-const isTrack = L => isBar(L) || isShape(L);
+const isCustom = L => !!(PIECES[L.ring] && PIECES[L.ring].kind === 'custom' && L.custom);
+const isTrack = L => isBar(L) || isShape(L) || isCustom(L);
+// a layer's piece by name: your own shapes go by the name you gave them
+const pieceLabel = L => isCustom(L) ? L.custom.name : pieceName(L.ring);
 const isBase = L => PIECES[L.ring] && PIECES[L.ring].kind === 'base';
-const outsideOnly = L => isBar(L) || isBase(L);   // pieces with teeth only on their outside   // anything that isn't a plain round ring (it can be turned to an angle)
+const outsideOnly = L => isBar(L) || isBase(L) || (isCustom(L) && !L.custom.inner);   // pieces with teeth only on their outside   // anything that isn't a plain round ring (it can be turned to an angle)
 
 const TAU = Math.PI * 2;
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
@@ -57,6 +64,7 @@ function holesFor(teeth, pitch) {
 function geom(L) {
   if (isBar(L)) return geomBar(L);
   if (isShape(L)) return geomShape(L);
+  if (isCustom(L)) return geomCustom(L);
   const base = isBase(L), ring = base ? { inner: 0, outer: L.base || 60, base: true } : RINGS[L.ring], inside = !base && L.mode === 'inside';
   const T = inside ? ring.inner : ring.outer, t = L.wheel, p = L.pitch;
   const Rr = radiusOf(T, p), rr = radiusOf(t, p);
@@ -149,8 +157,59 @@ function geomShape(L) {
     total: (TAU * t) / G, petals: T / G, laps: t / G, rot: (TAU * L.shift) / T
   };
 }
+// One edge of your own shape, ready to roll along: the outline sampled finely, `off` away from it (negative = the inner
+// edge), with the distance along it (s), the outward normal (ψ, unwound so it gains exactly 2π per trip round)
+// and how tightly it bends. Its length is made exactly teeth × pitch so every tooth meshes.
+// cached per outline (the shape maker makes a new outline object every time you redraw), per size, edge and angle
+const customCache = new WeakMap();
+function customTrack(c, p, off, ang) {
+  const key = [c.teeth, p, off, ang].join();
+  let mine = customCache.get(c.pts); if (!mine) customCache.set(c.pts, mine = new Map());
+  if (mine.has(key)) return mine.get(key);
+  const n = c.pts.length / 2, X = new Float64Array(n + 1), Y = new Float64Array(n + 1), PS = new Float64Array(n + 1), S = new Float64Array(n + 1);
+  let prev = null;
+  for (let i = 0; i < n; i++) {
+    const a = (i - 1 + n) % n, b = (i + 1) % n;
+    let psi = Math.atan2(c.pts[b * 2 + 1] - c.pts[a * 2 + 1], c.pts[b * 2] - c.pts[a * 2]) - Math.PI / 2;
+    if (prev != null) { while (psi - prev > Math.PI) psi -= TAU; while (psi - prev < -Math.PI) psi += TAU; }
+    prev = psi; PS[i] = psi;
+    X[i] = c.pts[i * 2] * p + off * Math.cos(psi); Y[i] = c.pts[i * 2 + 1] * p + off * Math.sin(psi);
+  }
+  X[n] = X[0]; Y[n] = Y[0]; PS[n] = PS[0] + TAU;
+  for (let i = 1; i <= n; i++) S[i] = S[i - 1] + Math.hypot(X[i] - X[i - 1], Y[i - 1] - Y[i]);
+  const Lp = (off < 0 ? c.teeth - SHAPE_GAP : c.teeth) * p, k = Lp / S[n];
+  for (let i = 1; i <= n; i++) S[i] *= k;
+  // tightest bends: convex (corners, which an inside wheel must get round) and concave (dents an outside wheel must get into)
+  let minR = Infinity, minConcave = Infinity, far = 0;
+  const sAt = j => j < 0 ? S[j + n] - S[n] : j > n ? S[j - n] + S[n] : S[j], psiAt = j => j < 0 ? PS[j + n] - TAU : j > n ? PS[j - n] + TAU : PS[j];
+  for (let i = 0; i < n; i++) {
+    const curv = (psiAt(i + 2) - psiAt(i - 2)) / (sAt(i + 2) - sAt(i - 2));
+    if (curv > 1e-9) minR = Math.min(minR, 1 / curv); else if (curv < -1e-9) minConcave = Math.min(minConcave, -1 / curv);
+    far = Math.max(far, Math.hypot(X[i], Y[i]));
+  }
+  const K = { sampled: true, n, X, Y, PS, S, Lp, ang, ca: Math.cos(ang), sa: Math.sin(ang), minR, minConcave, far };
+  if (mine.size > 32) mine.clear();
+  mine.set(key, K); return K;
+}
+function geomCustom(L) {
+  const c = L.custom, inside = L.mode === 'inside' && !!c.inner, T = inside ? c.teeth - SHAPE_GAP : c.teeth, t = L.wheel, p = L.pitch;
+  const ang = ((L.angle || 0) * Math.PI) / 180, K = customTrack(c, p, inside ? -shapeInset(p) : 0, ang);
+  const rr = radiusOf(t, p), holes = holesFor(t, p), hole = clampN(L.hole, 0, holes.length - 1), h = holes[hole], G = gcd(T, t);
+  return {
+    ring: PIECES[CUSTOM], track: K, inside, fits: inside ? rr < K.minR * .98 : rr < K.minConcave * .98,
+    T, t, p, Rr: K.far, rr, holes, hole, d: h.d, a: h.a,
+    c: K.far + (inside ? -rr : rr), ratio: inside ? -(T - t) / t : (T + t) / t,
+    total: (TAU * t) / G, petals: T / G, laps: t / G, rot: (TAU * L.shift) / T
+  };
+}
 // point on a shaped ring's pitch line `s` along, turned by its angle, with the outward normal angle ψ
 function trackPoint(K, cx, cy, s) {
+  if (K.sampled) {
+    let lo = 0, hi = K.n;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (K.S[m] <= s) lo = m; else hi = m; }
+    const f = (s - K.S[lo]) / (K.S[lo + 1] - K.S[lo] || 1), x = K.X[lo] + (K.X[lo + 1] - K.X[lo]) * f, y = K.Y[lo] + (K.Y[lo + 1] - K.Y[lo]) * f, psi = K.PS[lo] + (K.PS[lo + 1] - K.PS[lo]) * f;
+    return [cx + x * K.ca - y * K.sa, cy + x * K.sa + y * K.ca, psi + K.ang];
+  }
   let g = K.segs[K.segs.length - 1];
   for (const q of K.segs) if (s < q.s0 + q.len) { g = q; break; }
   const u = s - g.s0;
@@ -201,4 +260,4 @@ function* rangeIdx(tr, a, b) {
   for (let i = i0; i <= i1; i++) yield ((i % N) + N) % N;
 }
 
-if (typeof module !== 'undefined') module.exports = { isBase, outsideOnly, PAPER, RINGS, BARS, SHAPES, SHAPE_GAP, shapeTrack, shapeInset, PIECES, pieceName, isBar, isShape, isTrack, trackPoint, WHEELS, TAU, gcd, radiusOf, holesFor, geom, wheelAt, trace, rangeIdx };
+if (typeof module !== 'undefined') module.exports = { isCustom, customTrack, pieceLabel, CUSTOM, isBase, outsideOnly, PAPER, RINGS, BARS, SHAPES, SHAPE_GAP, shapeTrack, shapeInset, PIECES, pieceName, isBar, isShape, isTrack, trackPoint, WHEELS, TAU, gcd, radiusOf, holesFor, geom, wheelAt, trace, rangeIdx };

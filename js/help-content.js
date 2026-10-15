@@ -19,6 +19,10 @@ const HELP = [
       ['Round rings', 'Two rings, 96 / 150 and 105 / 144. Choose <b>Inside</b> to roll the wheel inside the ring, or <b>Outside</b> to roll round it.'],
       ['Bars', 'Bar 84 and Bar 108 are long pieces with rounded ends. The wheel rolls along both sides and round both ends, so you get ribbons and borders. Bars only have teeth on the outside. Turn them with <b>Angle</b>.'],
       ['Shapes', 'Oval, Triangle and Square have two toothed edges, like the rings. Inside, only wheels small enough to get round the tightest curve fit; the others are greyed out, and Speira swaps a wheel that is too big for one that fits. Turn shapes with <b>Angle</b>.'],
+      ['Your own shapes', 'Under <b>Your shapes</b>, press <b>Draw a shape…</b> and draw the outline of a new piece with your finger, Apple Pencil or mouse. Speira smooths it and works out its teeth from its length. <b>Smoothness</b> irons out wobbles (higher is smoother); <b>Size</b> makes the piece bigger or smaller, which changes how many teeth it has. A faint purple pattern shows what it makes.'],
+      ['When a shape is refused', 'A real wheel has to be able to follow the outline, so Speira refuses a point too sharp for teeth, a dent tighter than the smallest wheel (24 teeth) can get into, or a line that crosses itself. The trouble spots are circled in red. Smoothing it, making it bigger or redrawing that part usually fixes it.'],
+      ['Inner edge', 'If the corners are round enough, tick <b>Toothed inner edge too</b> to give your shape a second edge on the inside, 24 teeth shorter, so the wheel can roll inside it like the round rings. Without one, your shape is rolled round the outside only.'],
+      ['Keeping your shapes', 'Saved shapes go in <b>My shapes</b> in the Sketchbook and appear under Your shapes in Pieces. Touch one to put it on the paper. In the Sketchbook you can rename, duplicate or delete them. A drawing keeps its own copy of the shape, so it still opens if the shape is deleted.'],
       ['Fixed wheel', 'Pin a wheel of any size to the paper and roll another wheel round it. Pick the pinned wheel\'s size under <b>Fixed wheel</b>.'],
       ['Wheels', 'Eighteen wheels from 24 to 84 teeth. Bigger wheels make fewer, larger loops.'],
       ['Pen hole', 'Holes near the edge of the wheel make big, loopy patterns; holes near the middle make gentle waves. You can also click a hole on the wheel itself.'],
@@ -59,7 +63,9 @@ const HELP = [
   {
     id: 'paper', title: 'Paper', summary: 'Sizes, colours and textures.',
     items: [
-      ['Size', 'Square, A5, A4, A3, US Letter, phone and desktop wallpapers, Instagram sizes, or a custom size in millimetres, inches or pixels. Pieces stay their real size, so a bigger sheet has more room.'],
+      ['New canvas', '<b>New canvas</b> in the Sketchbook (or <kbd>N</kbd>) opens a sheet to set up a drawing before you start: its name, its size (a ready-made size, or any size in millimetres, centimetres, inches or pixels), the print resolution, the paper colour or a see-through background, the colour profile and the video settings. It remembers your choices for next time.'],
+      ['Size', 'Square, A5, A4, A3, US Letter, phone and desktop wallpapers, Instagram sizes, or a custom size in millimetres, centimetres, inches or pixels. Pieces stay their real size, so a bigger sheet has more room.'],
+      ['Colour profile', '<b>sRGB</b> is safest for the web, other apps and most printers. <b>Display P3</b> gives richer reds, greens and oranges on Apple screens; PNG and JPG pictures carry the profile with them. Only some browsers can make P3 pictures.'],
       ['Print resolution', 'Choose the DPI for printing; it sets how many pixels a PNG or JPG has.'],
       ['Turn the sheet', 'Swap portrait and landscape. Drawings stay centred when the sheet changes.'],
       ['Colour and texture', 'White, cream, kraft, black, navy, slate or any colour, plus grain, watercolour or kraft texture.']
@@ -78,7 +84,7 @@ const HELP = [
   {
     id: 'view', title: 'View, rulers and guides', summary: 'Zoom, turn the paper, and line things up exactly.',
     items: [
-      ['The View menu', 'Press <b>View</b> at the top for everything below. Your choices are remembered next time.'],
+      ['The View menu', 'Press <b>View</b> at the top for everything below. Your choices are remembered next time. Recipes can\'t carry your own shapes yet; share a .speira file instead.'],
       ['Zoom', 'Pinch on a trackpad or screen, use <kbd>⌘</kbd><kbd>+</kbd> and <kbd>⌘</kbd><kbd>−</kbd>, or the buttons at the top left of the paper. <kbd>⌘</kbd><kbd>0</kbd> fits the whole sheet; <kbd>⌘</kbd><kbd>1</kbd> shows it at real size.'],
       ['Move around', 'Scroll with two fingers, or drag with the middle mouse button. <b>Auto-centre</b> puts the paper back in the middle when the window changes size.'],
       ['Turn the paper', 'Twist two fingers on a trackpad or screen, or use the turn buttons in View. It clicks straight when close to upright or sideways. <b>Straighten</b> puts it back.'],
@@ -100,8 +106,8 @@ const HELP = [
       ['Save', 'Press <b>Save</b> (or <kbd>⌘</kbd><kbd>S</kbd>) to keep the drawing in your Sketchbook. A dot next to its name at the top means it has changes you haven\'t saved yet.'],
       ['Names', 'New drawings are called <b>Canvas</b> and the date, like Canvas 14/10/26; a second one that day becomes Canvas 14/10/26 2. Click the name at the top to rename it.'],
       ['The Sketchbook', 'Press <b>Sketchbook</b> (or <kbd>⌘</kbd><kbd>O</kbd>) to see all your drawings. Click one to open it. If the drawing you\'re leaving has unsaved changes, Speira asks whether to save it first.'],
-      ['A fresh sheet', '<b>New canvas</b> in the Sketchbook starts a blank drawing with the same paper and pieces.'],
-      ['Folders', '<b>My drawings</b> is where drawings go to start with. <b>My shapes</b> will hold shapes you make yourself (coming soon). Make your own with <b>New folder</b>, and move drawings with the <b>⋯</b> button on each one.'],
+      ['A fresh sheet', '<b>New canvas</b> in the Sketchbook (or <kbd>N</kbd>) asks how the new drawing should be set up (see Paper), then starts it blank with the pieces in the middle.'],
+      ['Folders', '<b>My drawings</b> is where drawings go to start with. <b>My shapes</b> holds the pieces you draw yourself (see Pieces). Make your own with <b>New folder</b>, and move drawings with the <b>⋯</b> button on each one.'],
       ['Rename, duplicate, delete', 'The <b>⋯</b> button on a drawing (or right-click) can rename it, make a copy, move it or delete it.'],
       ['Recently deleted', 'Deleted drawings wait in <b>Recently deleted</b> for 30 days, so you can put them back. After that they are gone for good, or straight away if you press Delete now or Empty.'],
       ['Speira files', '<b>Save as file</b> makes a small .speira file of a drawing, to move it to another computer or keep as a backup. <b>Open file</b>, or dragging a .speira file onto Speira, adds it to your Sketchbook and opens it.'],
@@ -114,7 +120,7 @@ const HELP = [
       ['Export', 'Press <b>Export</b> (or <kbd>⌘</kbd><kbd>E</kbd>) and pick a format. <kbd>⇧</kbd><kbd>⌘</kbd><kbd>E</kbd> exports again with the same settings.'],
       ['PNG and JPG', 'Pictures at your paper\'s size. PNG can have a see-through background; JPG is smaller.'],
       ['SVG', '<b>With pen effects</b> looks like the screen. <b>Plain lines</b> gives one clean line per layer, best for design apps, pen plotters and cutting machines.'],
-      ['Video', 'A video of your drawing making itself, every layer in order, 6 to 30 seconds long, optionally with the pieces turning. It records in real time, so keep the tab in front.']
+      ['Video', 'A video of your drawing making itself, every layer in order, 6 to 30 seconds long, optionally with the pieces turning. Choose 1080p, 2K or 4K and the quality (Low, Good, Studio or Lossless, which is the best the browser can record). HEVC makes smaller files where the browser offers it (Safari). These are saved with the drawing. It records in real time, so keep the tab in front.']
     ]
   },
   {
@@ -156,7 +162,7 @@ const HELP = [
       ['View', '<kbd>⌘</kbd><kbd>+</kbd> / <kbd>⌘</kbd><kbd>−</kbd> zoom · <kbd>⌘</kbd><kbd>0</kbd> fit · <kbd>⌘</kbd><kbd>1</kbd> actual size · <kbd>⌃</kbd><kbd>⌘</kbd><kbd>F</kbd> full screen'],
       ['Rulers and guides', '<kbd>⌃</kbd><kbd>⌘</kbd><kbd>R</kbd> rulers · <kbd>⌘</kbd><kbd>;</kbd> guides · <kbd>⌥</kbd><kbd>⌘</kbd><kbd>;</kbd> lock guides · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>;</kbd> snapping · <kbd>⌃</kbd> while dragging: no snapping · <kbd>⌘</kbd><kbd>\'</kbd> grid'],
       ['Panels', '<kbd>⌃</kbd><kbd>⌘</kbd><kbd>I</kbd> info bar · <kbd>⌃</kbd><kbd>⌘</kbd><kbd>P</kbd> hide panel · <kbd>⌃</kbd><kbd>H</kbd> hide everything (<kbd>Esc</kbd> to bring back)'],
-      ['Files', '<kbd>⌘</kbd><kbd>S</kbd> save · <kbd>⌘</kbd><kbd>O</kbd> Sketchbook · <kbd>⌘</kbd><kbd>E</kbd> export · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>E</kbd> export again · <kbd>⌘</kbd><kbd>Z</kbd> undo · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>Z</kbd> redo · <kbd>⌘</kbd><kbd>V</kbd> paste a recipe'],
+      ['Files', '<kbd>⌘</kbd><kbd>S</kbd> save · <kbd>⌘</kbd><kbd>O</kbd> Sketchbook · <kbd>N</kbd> new canvas · <kbd>⌘</kbd><kbd>E</kbd> export · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>E</kbd> export again · <kbd>⌘</kbd><kbd>Z</kbd> undo · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>Z</kbd> redo · <kbd>⌘</kbd><kbd>V</kbd> paste a recipe'],
       ['Elsewhere', '<kbd>W</kbd> Just watch (<kbd>T</kbd> two at once inside it) · <kbd>?</kbd> this Help']
     ]
   }
