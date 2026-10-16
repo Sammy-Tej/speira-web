@@ -671,9 +671,10 @@ const VIDEO_DEFAULT = { size: 1080, quality: 'good', hevc: false };
 const QUALITY = { low: .5, good: 1, studio: 2, lossless: 4 };   // browsers can't record truly lossless video: this is their best
 const vidSet = () => { const v = { ...VIDEO_DEFAULT, size: P.vidSize || 1080, ...(P.paper.video || {}) }; if (![1080, 1440, 2160].includes(+v.size)) v.size = 1080; return v; };
 const canHevc = () => !!(window.MediaRecorder && ['video/mp4;codecs=hvc1', 'video/mp4;codecs=hev1'].some(t => MediaRecorder.isTypeSupported(t)));
-// colour profile: Display P3 where the browser can make such canvases, otherwise sRGB
+// colour profile: Display P3 only on a screen that can show it (like Procreate: the base iPad and older screens only get sRGB)
+// and where the browser can make such canvases; otherwise sRGB
 let p3ok = null;
-const canP3 = () => { if (p3ok == null) { try { const x = document.createElement('canvas').getContext('2d', { colorSpace: 'display-p3' }); p3ok = !!(x && x.getContextAttributes && x.getContextAttributes().colorSpace === 'display-p3'); } catch { p3ok = false; } } return p3ok; };
+const canP3 = () => { if (p3ok == null) { try { if (!(window.matchMedia && matchMedia('(color-gamut: p3)').matches)) return (p3ok = false); const x = document.createElement('canvas').getContext('2d', { colorSpace: 'display-p3' }); p3ok = !!(x && x.getContextAttributes && x.getContextAttributes().colorSpace === 'display-p3'); } catch { p3ok = false; } } return p3ok; };
 const ctx2d = c => c.getContext('2d', P.paper.profile === 'p3' && canP3() ? { colorSpace: 'display-p3' } : {});
 // Every visible layer is replayed in order at an even pen speed, onto a canvas that MediaRecorder films in real
 // time (MP4 in Safari, WebM where MP4 recording isn't offered). A short pause at the start and a hold at the end.

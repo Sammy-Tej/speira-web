@@ -19,7 +19,7 @@ const conv = (v, from, to, dpi) => {
 };
 const pixels = () => st.unit === 'px' ? [Math.round(st.w), Math.round(st.h)] : [conv(st.w, st.unit, 'px', st.dpi), conv(st.h, st.unit, 'px', st.dpi)];
 // the unit Speira stores: centimetres are kept as they are, so rulers and the Paper card show cm too
-const paperOf = () => ({ ...DEFAULT_PAPER, preset: st.preset, unit: st.unit, w: st.w, h: st.h, dpi: st.dpi, scale: 1, profile: st.profile, video: { ...st.video } });
+const paperOf = () => ({ ...DEFAULT_PAPER, preset: st.preset, unit: st.unit, w: st.w, h: st.h, dpi: st.dpi, scale: 1, profile: L.canP3() ? st.profile : 'srgb', video: { ...st.video } });
 
 function render() {
   const [pw, ph] = pixels(), big = pw * ph > 16384 * 16384 / 4;
@@ -44,8 +44,8 @@ function render() {
     <div class="field"><span class="lbl">Background</span><div class="swatches">${papers}</div>
       <div class="ns-size"><label class="row ns-colour"><span>Any colour</span><input type="color" id="nsBg" value="${st.bg}"></label>
       <label class="check"><input type="checkbox" id="nsClear" ${st.transparent ? 'checked' : ''}> Hide background <small>see-through PNG and SVG</small></label></div></div>
-    <div class="field"><span class="lbl">Colour profile</span>${seg('profile', [['srgb', 'sRGB'], ['p3', 'Display P3']], st.profile, p3 ? {} : { p3: 'This browser can\'t make Display P3 pictures' })}
-      <small class="ns-note">${st.profile === 'p3' ? 'Richer reds, greens and oranges on Apple screens and in Photos.' : 'Safest for the web, other apps and most printers.'}</small></div>
+    <div class="field"><span class="lbl">Colour profile</span>${seg('profile', p3 ? [['srgb', 'sRGB'], ['p3', 'Display P3']] : [['srgb', 'sRGB']], p3 ? st.profile : 'srgb')}
+      <small class="ns-note">${!p3 ? 'This screen shows sRGB colours, so that is the profile here. Display P3 appears on screens that can show it.' : st.profile === 'p3' ? 'Richer reds, greens and oranges on Apple screens and in Photos.' : 'Safest for the web, other apps and most printers.'}</small></div>
     <div class="field"><span class="lbl">Video</span>${seg('vsize', [[1080, '1080p'], [1440, '2K'], [2160, '4K']], st.video.size)}
       ${seg('vq', [['low', 'Low'], ['good', 'Good'], ['studio', 'Studio'], ['lossless', 'Lossless']], st.video.quality)}
       <label class="check" ${hevc ? '' : 'title="This browser can\'t record HEVC (Safari can)"'}><input type="checkbox" id="nsHevc" ${st.video.hevc && hevc ? 'checked' : ''} ${hevc ? '' : 'disabled'}> HEVC <small>smaller files at the same quality${hevc ? '' : ' · not in this browser'}</small></label></div>`;

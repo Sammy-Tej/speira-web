@@ -65,7 +65,7 @@ const HELP = [
     items: [
       ['New canvas', '<b>New canvas</b> in the Sketchbook (or <kbd>N</kbd>) opens a sheet to set up a drawing before you start: its name, its size (a ready-made size, or any size in millimetres, centimetres, inches or pixels), the print resolution, the paper colour or a see-through background, the colour profile and the video settings. It remembers your choices for next time.'],
       ['Size', 'Square, A5, A4, A3, US Letter, phone and desktop wallpapers, Instagram sizes, or a custom size in millimetres, centimetres, inches or pixels. Pieces stay their real size, so a bigger sheet has more room.'],
-      ['Colour profile', '<b>sRGB</b> is safest for the web, other apps and most printers. <b>Display P3</b> gives richer reds, greens and oranges on Apple screens; PNG and JPG pictures carry the profile with them. Only some browsers can make P3 pictures.'],
+      ['Colour profile', '<b>sRGB</b> is safest for the web, other apps and most printers. <b>Display P3</b> gives richer reds, greens and oranges on Apple screens; PNG and JPG pictures carry the profile with them. Display P3 only appears on screens that can show it, like Speira on a Mac or an iPad Air; elsewhere sRGB is used.'],
       ['Print resolution', 'Choose the DPI for printing; it sets how many pixels a PNG or JPG has.'],
       ['Turn the sheet', 'Swap portrait and landscape. Drawings stay centred when the sheet changes.'],
       ['Colour and texture', 'White, cream, kraft, black, navy, slate or any colour, plus grain, watercolour or kraft texture.']
