@@ -91,9 +91,9 @@ const HELP = [
       ['Rulers', '<kbd>⌃</kbd><kbd>⌘</kbd><kbd>R</kbd> shows rulers along the top and left, in your paper\'s units (mm, inches or pixels). They hide while the paper is turned.'],
       ['Guides', 'Drag out of a ruler to make a guide. Drag a guide to move it, or back onto the ruler to remove it. View can also add centre guides, type a guide at an exact place, or clear them all. <kbd>⌘</kbd><kbd>;</kbd> shows or hides them; <kbd>⌥</kbd><kbd>⌘</kbd><kbd>;</kbd> locks them so they can\'t be moved by accident.'],
       ['Saved guides', 'Type a name under <b>Saved guides</b> and press Save to keep the guides you have now. Pick it from the list on any drawing to bring them back.'],
-      ['Snapping', 'When you move a ring, it clicks to guides, the paper\'s edges and centre, and anything else that is showing (grid, thirds, margins). <kbd>⇧</kbd><kbd>⌘</kbd><kbd>;</kbd> turns snapping off. Hold <kbd>⌃</kbd> while dragging to move freely just this once.'],
-      ['Smart guides', 'Pink lines appear when the ring lines up with the centre of other pieces, so stencils sit neatly in a row.'],
-      ['Overlays', 'A grid (<kbd>⌘</kbd><kbd>\'</kbd>, with a choice of spacing), centre lines, a rule-of-thirds grid and print margins. They only show on screen and never in exports. <b>Overlays</b> hides them all at once.'],
+      ['Snapping', 'When you move a ring, its pattern snaps the way it does in Pixelmator Pro and Affinity: its left edge, centre and right edge (and its top, middle and bottom) click to the paper\'s edges and centre, guides, and anything else that is showing (grid, thirds, margins). The ring stays where you grabbed it, so it never jumps. <kbd>⇧</kbd><kbd>⌘</kbd><kbd>;</kbd> turns snapping off. Hold <kbd>⌃</kbd> while dragging to move freely just this once.'],
+      ['Smart guides', 'Patterns snap to each other too: to the edges and middle of every other pattern on the paper, and to the centres of the other pieces. A pink line shows what it lined up with, so patterns can sit side by side, touch, or line up neatly.'],
+            ['Overlays', 'A grid (<kbd>⌘</kbd><kbd>\'</kbd>, with a choice of spacing), centre lines, a rule-of-thirds grid and print margins. They only show on screen and never in exports. <b>Overlays</b> hides them all at once.'],
       ['Info bar', '<kbd>⌃</kbd><kbd>⌘</kbd><kbd>I</kbd> shows a strip with the paper size, zoom, angle and where the pointer is.'],
       ['Clear the way', '<kbd>⌃</kbd><kbd>⌘</kbd><kbd>P</kbd> hides the side panel. <kbd>⌃</kbd><kbd>H</kbd> hides everything except the paper; <kbd>Esc</kbd> brings it all back.'],
       ['Drawing info', '<b>Drawing info…</b> lists the name, paper, picture size, layers and pieces of the drawing.'],
@@ -128,6 +128,8 @@ const HELP = [
     items: [
       ['Start', 'Press <b>Watch</b> (or <kbd>W</kbd>). Speira fills the screen and composes patterns on its own, forever, on black. Every visit starts with a fresh sheet.'],
       ['Bring your drawing', 'If there is a drawing on your canvas, Watch asks first: <b>Start fresh</b>, or <b>Use my drawing</b>. With your drawing, Speira adds its layers on top; your own layers stay put and never fade.'],
+      ['Paper and colours', 'Watch draws on black, which suits TVs best. <b>Paper</b> → <b>My paper</b> uses your drawing\'s paper colour instead. Colour moods include three from the Speira palette (Kaleidoscope, Jewels, Earth) and <b>My pens</b>, the colours in your drawing. If a colour would barely show on the paper, Watch makes it a little darker or lighter. Watch always chooses its own pen types.'],
+      ['Your drawing\'s look', 'When you bring your drawing along, Watch switches to your paper and your pens for that visit. Your saved choices come back next time.'],
       ['Layers come and go', 'Up to six of Speira\'s layers build up (fewer if you choose), then the oldest fades as each new one starts.'],
       ['Two at once', '<b>Two at once</b> (or <kbd>T</kbd>) draws two patterns side by side. They never overlap.'],
       ['Controls', 'Move the mouse to see them: speed, colour mood, rainbow ink, show the pieces, two at once, layers on screen, click volume, pause, next layer and leave.'],
@@ -143,13 +145,8 @@ const HELP = [
   {
     id: 'look', title: 'Light and dark', summary: 'Choose how Speira looks.',
     items: [
-      ['Theme', 'The sun and moon at the top switch between light and dark. Speira starts with your device\'s setting and then remembers your choice. Your paper colour never changes with it.']
-    ]
-  },
-  {
-    id: 'touch', title: 'iPad and touch', summary: 'Fingers and Apple Pencil.',
-    items: [
-      ['Two fingers never draw', 'Pinch to zoom and drag with two fingers to move around. A second finger stops the roll and takes back anything it drew.'],
+      ['Piece colours', 'The pieces are tinted plastic you can see through. <b>Mint</b> (green rings, amber wheels) is Speira\'s own; there are also three from the Speira palette (aqua and copper, violet and chartreuse, teal and gold), Classic blue and pink, Violet, Smoke and Clear. Choose under Paper.'],
+      ['Theme', 'The sun and moon at the top switch between light and dark. Speira starts with your device\'s setting and then remembers your choice. Your paper colour never changes with it.'],
       ['Apple Pencil', 'While the Pencil is on or near the screen, your resting hand is ignored.'],
       ['Bigger targets', 'Buttons and sliders grow on touch screens so they are easy to hit.']
     ]

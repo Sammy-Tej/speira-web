@@ -43,14 +43,29 @@ function snap1(val, axis, extra = []) {
   if (VS.overlays && VS.grid) { const st = gridStep(); consider(Math.round(val / st) * st, 'grid'); }
   return best;
 }
-// moving a ring: its centre snaps; other pieces' centres count too when smart guides are on. Hold Control to place freely.
+// Moving a ring snaps the way Pixelmator Pro and Affinity do: the pattern's left edge, centre and right edge (and top,
+// middle, bottom) snap to the paper, guides, grid, and the edges and centres of every other pattern on the paper.
+// Hold Control to place freely. A pink line shows what it lined up with.
 function snapMove(x, y, e) {
   smartLines = [];
   if (VS.snap && !e.ctrlKey) {
-    const others = VS.smart ? V.stencilCentres() : [];
-    const sx = snap1(x, 'x', others.map(c => [c[0], 'smart'])), sy = snap1(y, 'y', others.map(c => [c[1], 'smart']));
-    if (sx) { x = sx.at; smartLines.push({ axis: 'x', at: x, kind: sx.kind }); }
-    if (sy) { y = sy.at; smartLines.push({ axis: 'y', at: y, kind: sy.kind }); }
+    const others = VS.smart ? V.patternBoxes() : [], me = V.movingBox();
+    const axisSnap = (val, axis) => {
+      const lo = axis === 'x' ? me.x0 : me.y0, hi = axis === 'x' ? me.x1 : me.y1;
+      const extra = [];
+      for (const b of others) { const a = axis === 'x' ? [b.x0, b.x1] : [b.y0, b.y1]; extra.push([a[0], 'smart'], [a[1], 'smart'], [(a[0] + a[1]) / 2, 'smart']); }
+      for (const c of V.stencilCentres()) extra.push([axis === 'x' ? c[0] : c[1], 'smart']);
+      // try the centre, then each edge of the moving pattern: whichever lands closest to something wins
+      let best = null;
+      for (const [off, part] of [[0, 'centre'], [lo, 'edge'], [hi, 'edge'], [(lo + hi) / 2, 'middle']]) {
+        const hit = snap1(val + off, axis, extra);
+        if (hit && (!best || hit.d < best.d)) best = { ...hit, off };
+      }
+      return best;
+    };
+    const sx = axisSnap(x, 'x'), sy = axisSnap(y, 'y');
+    if (sx) { x = sx.at - sx.off; smartLines.push({ axis: 'x', at: sx.at, kind: sx.kind }); }
+    if (sy) { y = sy.at - sy.off; smartLines.push({ axis: 'y', at: sy.at, kind: sy.kind }); }
   }
   moveLabel = { x, y };
   return [x, y];

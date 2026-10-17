@@ -8,7 +8,7 @@ const PAPERS = [['#ffffff', 'White'], ['#f6f1e7', 'Cream'], ['#e8d8b9', 'Kraft']
 
 // ---------- state ----------
 const S = { angle: 0, base: 60, ring: 1, mode: 'inside', wheel: 52, hole: 4, shift: 0, pitch: 16, cx: 500, cy: 500, color: '#3a86ff', width: 1.6, opacity: 1, autoShift: 0, pen: 'ballpoint', rainbow: false, custom: null };
-const P = { bg: '#ffffff', stencil: true, autoHide: true, ghost: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'classic', paper: { ...DEFAULT_PAPER }, svgMode: 'effects', exportFmt: 'png', jpgQ: .9, vidLen: 12, vidSize: 1080, vidPieces: false, folds: { pieces: true, pen: false, paper: false, layers: false } };
+const P = { bg: '#ffffff', stencil: true, autoHide: true, ghost: true, speed: .6, transparent: false, sound: .35, momentum: true, oneWay: false, tint: 'mint', paper: { ...DEFAULT_PAPER }, svgMode: 'effects', exportFmt: 'png', jpgQ: .9, vidLen: 12, vidSize: 1080, vidPieces: false, folds: { pieces: true, pen: false, paper: false, layers: false } };
 const PW = () => paperWorld(P.paper)[0], PH = () => paperWorld(P.paper)[1];
 let layers = [], cur = null, playing = false, uid = 1;
 let rpQueue = [], rpN = 0;   // Repeat: passes still to draw, and how many there are in all
@@ -21,7 +21,7 @@ let past = [], future = [];
 const layerFrom = s => ({ id: uid++, ...s, a: 0, b: 0, pos: 0, visible: true });
 const newLayer = () => layerFrom(S);
 const inked = L => L && L.b - L.a > 1e-6;
-const strip = L => { const { _tr, _key, _plan, _pk, _xy, ...rest } = L; return rest; };
+const strip = L => { const { _tr, _key, _plan, _pk, _xy, _box, _bk, ...rest } = L; return rest; };
 // withBg: also remember the paper colour (only for steps that change it, like keeping a Just watch picture)
 const twoData = () => other ? { two: { S: { ...other.S }, cur: strip(other.cur), idx: other.idx }, ai: activeIdx } : {};
 function setTwo(o) { other = o && o.two ? { S: { ...o.two.S }, cur: { ...o.two.cur }, idx: o.two.idx, playing: false, rpQueue: [], rpN: 0 } : null; activeIdx = other ? (o.ai ?? 0) : 0; otherRing.key = ''; }
@@ -58,7 +58,10 @@ function save() {
 function load() {
   try {
     const o = JSON.parse(localStorage.getItem(STORE) || 'null'); if (!o) return false;
-    Object.assign(S, o.S); Object.assign(P, o.P); P.paper = { ...DEFAULT_PAPER, ...(o.P && o.P.paper) }; layers = o.layers || []; cur = o.cur || newLayer();
+    Object.assign(S, o.S); Object.assign(P, o.P);
+    // Mint became the default (16/10/26): anyone who never picked a piece colour moves over once
+    if (!P.tintChosen) P.tint = 'mint';
+    P.paper = { ...DEFAULT_PAPER, ...(o.P && o.P.paper) }; layers = o.layers || []; cur = o.cur || newLayer();
     setTwo(o); if (o.doc) doc = o.doc; if (o.savedHash) savedHash = o.savedHash;
     uid = Math.max(1, ...allIds()); return true;
   } catch { return false; }
@@ -182,9 +185,14 @@ function rebuildInk() {
 
 // ---------- stencil drawing: translucent acrylic pieces ----------
 // Piece colour sets: [ring, wheel] as RGB.
+// Mint is Speira's own look (the toy's blue rings and pink wheels stay available as Classic); the last three are from
+// Sam's Style palette: Aqua with Copper, Electric violet with Chartreuse, Teal with Antique gold
 const TINTS = {
-  classic: [[96, 170, 255], [255, 110, 165]],
   mint: [[60, 205, 160], [255, 180, 60]],
+  kaleido: [[111, 229, 234], [171, 117, 84]],
+  jewel: [[149, 55, 209], [209, 206, 119]],
+  earth: [[69, 135, 157], [156, 121, 60]],
+  classic: [[96, 170, 255], [255, 110, 165]],
   violet: [[150, 120, 255], [80, 200, 230]],
   smoke: [[120, 130, 150], [120, 130, 150]],
   clear: [[215, 225, 240], [215, 225, 240]]
@@ -505,7 +513,8 @@ cv.addEventListener('pointerdown', e => {
   const [x, y] = toWorld(e.clientX, e.clientY);
   try { cv.setPointerCapture(e.pointerId); } catch {}
   if (e.button === 1) { e.preventDefault(); drag = { kind: 'pan', x: e.clientX, y: e.clientY }; cv.classList.add('panning'); return; }
-  if (moveMode || e.altKey) { drag = { kind: 'move' }; return; }
+  // moving the ring keeps hold of it where you grabbed it, so its centre doesn't jump to the pointer
+  if (moveMode || e.altKey) { drag = { kind: 'move', dx: cur.cx - x, dy: cur.cy - y }; return; }
   if (other && P.stencil && touchesOther(x, y)) { swapSets(); return; }
   if (P.stencil) {
     const G = geom(cur), w = wheelAt(G, cur, cur.pos), tol = Math.max(G.p * .32, (e.pointerType === 'touch' ? 22 : 10) * view.dpr / view.s);   // fingers get a bigger target
@@ -539,7 +548,8 @@ cv.addEventListener('pointermove', e => {
     return;
   }
   if (drag.kind === 'move') {
-    const [mx, my] = window.SpeiraView ? SpeiraView.snapMove(x, y, e) : [x, y];   // snaps to guides, centre, grid, other pieces
+    const tx = x + (drag.dx || 0), ty = y + (drag.dy || 0);
+    const [mx, my] = window.SpeiraView ? SpeiraView.snapMove(tx, ty, e) : [tx, ty];   // snaps to guides, the paper, grid, other patterns' edges and centres
     change(s => { s.cx = Math.round(clampN(mx, 0, PW()) * 100) / 100; s.cy = Math.round(clampN(my, 0, PH()) * 100) / 100; }); return;
   }
   const ang = Math.atan2(y - cur.cy, x - cur.cx);
@@ -788,11 +798,11 @@ swatches($('#pens'), PENS, () => S.color, c => change(s => s.color = c, true));
 $('#inkFix').addEventListener('click', e => change(s => s.color = e.currentTarget.dataset.v, true));
 swatches($('#papers'), PAPERS, () => P.bg, c => { P.bg = c; syncControls(); save(); });
 (() => {
-  const box = $('#tints'), names = { classic: 'Classic', mint: 'Mint', violet: 'Violet', smoke: 'Smoke', clear: 'Clear' };
+  const box = $('#tints'), names = { mint: 'Mint', kaleido: 'Aqua and copper', jewel: 'Violet and chartreuse', earth: 'Teal and gold', classic: 'Classic', violet: 'Violet', smoke: 'Smoke', clear: 'Clear' };
   Object.keys(TINTS).forEach(k => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'tint'; b.dataset.v = k; b.title = names[k]; b.setAttribute('aria-label', names[k] + ' pieces');
     b.style.setProperty('--a', `rgb(${TINTS[k][0]})`); b.style.setProperty('--b', `rgb(${TINTS[k][1]})`);
-    b.addEventListener('click', () => { P.tint = k; syncControls(); save(); }); box.appendChild(b);
+    b.addEventListener('click', () => { P.tint = k; P.tintChosen = true; syncControls(); save(); }); box.appendChild(b);
   });
   box._sync = () => [...box.children].forEach(b => b.setAttribute('aria-pressed', b.dataset.v === P.tint));
 })();
@@ -1252,6 +1262,19 @@ addEventListener('keydown', e => {
   else if (e.key === '.') change(s => s.shift = (s.shift + 1) % 1000);
 });
 
+// ---------- the box round a drawn pattern (for snapping patterns to each other, by their edges and centres) ----------
+function boxOf(L, whole = false) {
+  const t = tr(L), key = [L._key, whole ? 'all' : L.a, whole ? '' : L.b].join();
+  if (L._bk === key) return L._box;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const idx = whole ? [...Array(t.N).keys()] : rangeIdx(t, L.a, L.b);
+  for (const i of idx) { const x = t.pts[i * 2], y = t.pts[i * 2 + 1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  L._box = { x0, y0, x1, y1 }; L._bk = key; return L._box;
+}
+// every other pattern on the paper (visible layers and the second set's pass), and the one you're moving, measured from its centre
+const patternBoxes = () => [...layers.filter(l => l.visible && inked(l)), ...(other && inked(other.cur) ? [other.cur] : [])].map(l => boxOf(l));
+function movingBox() { const b = boxOf(cur, true); return { x0: b.x0 - cur.cx, x1: b.x1 - cur.cx, y0: b.y0 - cur.cy, y1: b.y1 - cur.cy }; }
+
 // ---------- your own shapes (made in the shape maker, kept in My shapes) ----------
 function useShape(shape) {
   if (!shape) return;
@@ -1355,9 +1378,9 @@ function watchLayers(list) {
 // keep, option 1: add them to this canvas as new layers on top (one ⌘Z takes them off again)
 function adoptAdd(list) { stop(); remember(); layers = [...layers, ...(inked(cur) ? [cur] : []), ...watchLayers(list)]; cur = newLayer(); syncControls(); dirty(); }
 // keep, option 2: a drawing of its own on black paper, for the Sketchbook to save
-const watchDoc = list => ({ layers: watchLayers(list), cur: strip(newLayer()), paper: P.paper, bg: '#000000' });
+const watchDoc = (list, bg = '#000000') => ({ layers: watchLayers(list), cur: strip(newLayer()), paper: P.paper, bg });
 // keep, option 3 (Watch was started with your drawing): a copy of your drawing with them on top, on black like in Watch
-const watchCopy = list => ({ layers: [...visibleInk().map(L => ({ ...strip(L), visible: true })), ...watchLayers(list)], cur: strip(newLayer()), paper: P.paper, bg: '#000000' });
+const watchCopy = (list, bg = '#000000') => ({ layers: [...visibleInk().map(L => ({ ...strip(L), visible: true })), ...watchLayers(list)], cur: strip(newLayer()), paper: P.paper, bg });
 // what Just watch needs to bring your drawing along: every visible line, and the paper's size
 const inkForWatch = () => ({ layers: visibleInk().map(strip), W: PW(), H: PH() });
 
@@ -1396,10 +1419,10 @@ const setDocFolder = folder => { doc.folder = folder; save(); };
 // the open drawing was deleted from the Sketchbook: it stays open, as an unsaved copy
 function detachDoc() { doc.id = null; savedHash = ''; syncDocTitle(); save(); }
 window.SpiroLab = { get layers() { return layers; }, get cur() { return cur; }, S, P, exportSVG, exportPNG, finish, newLayerFromCurrent, change,
-  adoptAdd, watchDoc, watchCopy, inkForWatch, ringCache, drawPieces: (c, L, v, ring) => drawStencil(c, L, v, ring, false),
+  adoptAdd, watchDoc, watchCopy, inkForWatch, paperColour: () => P.bg, ringCache, drawPieces: (c, L, v, ring) => drawStencil(c, L, v, ring, false),
   // for the View menu (js/view.js)
   v: { view, cam, get cv() { return cv; }, PW, PH, MM, applyView, zoomBy, zoomTo, resetView, actualSize, rotateTo, toWorld, worldToDev, devToWorld,
-    toggleFullscreen, isFull: () => !!fsEl(), stencilCentres: () => [...layers.filter(l => l.visible).map(l => [l.cx, l.cy]), ...(other ? [[other.cur.cx, other.cur.cy]] : [])],
+    toggleFullscreen, isFull: () => !!fsEl(), patternBoxes, movingBox, stencilCentres: () => [...layers.filter(l => l.visible).map(l => [l.cx, l.cy]), ...(other ? [[other.cur.cx, other.cur.cy]] : [])],
     persist: () => save(), get cur() { return cur; }, get layerCount() { return layers.length + (inked(cur) ? 1 : 0) + (other && inked(other.cur) ? 1 : 0); }, pieceWords: L => pieceWords(L), redraw: () => { inkDirty = true; mainRing.key = ''; } },
   papers: PAPERS, useShape, renderMyShapes, canP3, canHevc, vidSet, get transparent() { return P.transparent; },
   get doc() { return doc; }, docData, isDirtyDoc, thumbnail, loadDoc, newDoc, markSaved, renameDoc, setDocFolder, detachDoc, canvasName, toast: (m, bad) => toast(m, bad) };

@@ -173,7 +173,7 @@ input[type=color] { width: 100%; height: 30px; border: 1px solid var(--line); bo
 #mute .off { display: none; }
 #mute[aria-pressed="true"] .on { display: none; }
 #mute[aria-pressed="true"] .off { display: block; color: var(--accent); }
-.tints { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.tints { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .tint { aspect-ratio: 1.6; border-radius: 10px; border: 1px solid var(--line); cursor: pointer;
   background: linear-gradient(135deg, var(--a) 0 50%, var(--b) 50% 100%); opacity: .75; }
 .tint:hover { opacity: 1; }
@@ -512,3 +512,4 @@ body.rulers .stage:has(.setbar > *) #toast { top: 74px; }
 .chips.myshapes .chip { padding: 0 10px; font: 600 12px var(--ui); display: inline-flex; align-items: center; gap: 6px; }
 .chips.myshapes .chip svg { width: 14px; height: 14px; }
 @media (max-width: 760px) { .smmain { grid-template-columns: 1fr; } }
+

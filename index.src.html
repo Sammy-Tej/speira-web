@@ -16,6 +16,8 @@
     document.documentElement.dataset.theme = t || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); })();
 </script>
 <link rel="stylesheet" href="styles.css">
+<!-- local/: optional extras that live only on this Mac (git-ignored); if they are missing nothing happens -->
+<link rel="stylesheet" href="local/extras.css">
 </head>
 <body>
 %%ICONS%%
@@ -27,7 +29,7 @@
         <button type="button" data-speed="calm">Calm</button><button type="button" data-speed="normal">Normal</button><button type="button" data-speed="lively">Lively</button>
       </div>
       <div class="wseg" id="wMood" role="group" aria-label="Colours">
-        <button type="button" data-mood="auto">Auto</button><button type="button" data-mood="aurora">Aurora</button><button type="button" data-mood="ember">Ember</button><button type="button" data-mood="ocean">Ocean</button><button type="button" data-mood="neon">Neon</button><button type="button" data-mood="metallic">Metallic</button>
+        <button type="button" data-mood="auto">Auto</button><button type="button" data-mood="aurora">Aurora</button><button type="button" data-mood="ember">Ember</button><button type="button" data-mood="ocean">Ocean</button><button type="button" data-mood="neon">Neon</button><button type="button" data-mood="metallic">Metallic</button><button type="button" data-mood="kaleido">Kaleidoscope</button><button type="button" data-mood="jewels">Jewels</button><button type="button" data-mood="earth">Earth</button><button type="button" data-mood="mypens" title="The colours in your drawing">My pens</button>
       </div>
       <button class="wtog" id="wRainbow" type="button" aria-pressed="false" title="Rainbow ink on every layer (R)"><svg><use href="#i-rainbow"/></svg><span>Rainbow</span></button>
       <button class="wtog" id="wPieces" type="button" aria-pressed="false" title="Show the ring and wheel (P)"><svg><use href="#i-eye"/></svg><span>Pieces</span></button>
@@ -38,6 +40,7 @@
         <button class="wbtn" id="wMute" type="button" aria-pressed="false" aria-label="Mute clicks" title="Tooth clicks (M)"><svg class="on"><use href="#i-speaker-high"/></svg><svg class="off"><use href="#i-speaker-slash"/></svg></button>
         <input type="range" id="wVol" min="0" max="1" step=".05" aria-label="Click volume">
       </div>
+      <div class="wseg" id="wPaper" role="group" aria-label="Paper" title="Black, or your drawing's paper colour"><span class="wlbl">Paper</span><button type="button" data-paper="black">Black</button><button type="button" data-paper="mine">My paper</button></div>
       <div class="wseg" id="wLayers" role="group" aria-label="Layers on screen" title="How many layers on screen at once">
         <span class="wlbl">Layers</span><button type="button" data-layers="3">3</button><button type="button" data-layers="4">4</button><button type="button" data-layers="5">5</button><button type="button" data-layers="6">6</button>
       </div>
@@ -299,6 +302,7 @@
 <script src="js/geometry.js"></script>
 <script src="js/pens.js"></script>
 <script src="js/paper.js"></script>
+<script src="local/extras.js"></script>
 <script src="js/app.js"></script>
 <script src="js/watch.js"></script>
 <script src="js/help-content.js"></script>

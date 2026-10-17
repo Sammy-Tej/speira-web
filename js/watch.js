@@ -13,16 +13,20 @@ const MOODS = {
   ember: ['#ffb703', '#fb8500', '#ff5d73', '#e63946', '#ffd6a5', '#f4a261'],
   ocean: ['#48cae4', '#00b4d8', '#90e0ef', '#4361ee', '#80ffdb', '#caf0f8'],
   neon: ['#39ff14', '#ff2e97', '#00f0ff', '#ffe600', '#b026ff', '#ff6b00'],
-  metallic: ['#e0b354', '#c8d1dc', '#e8a0a0', '#d9824b', '#b08d57', '#f2d8a7']
+  metallic: ['#e0b354', '#c8d1dc', '#e8a0a0', '#d9824b', '#b08d57', '#f2d8a7'],
+  // from Sam's Style palette (the kaleidoscope reference images)
+  kaleido: ['#6FE5EA', '#D03020', '#D1CE77', '#9537D1', '#AB7554', '#66BD77'],
+  jewels: ['#9537D1', '#AD318A', '#6FE5EA', '#D1CE77', '#702F79', '#45879D'],
+  earth: ['#AB7554', '#D1CE77', '#9C793C', '#CFC4A7', '#9C965B', '#724933']
 };
-const MOOD_KEYS = Object.keys(MOODS);
+const MOOD_KEYS = Object.keys(MOODS);   // "My pens" (the colours in your drawing) is chosen, never part of Auto
 const SPEEDS = { calm: 65, normal: 110, lively: 190 };          // pen travel, world units per second
 // only pens that read on black (felt, highlighter and pencil blend into dark paper)
 const PEN_MIX = [['gel', 30], ['fineliner', 14], ['metallic', 22], ['glitter', 16], ['ballpoint', 18]];
 const MOOD_EVERY = 6, FADE_S = 10, DENSE = 30, CX = 500, CY = 500, REACH = 420, SLEEP_FADE_MS = 60000;
 
 const KEY = 'speira-watch-v1';
-const prefs = { speed: 'normal', mood: 'auto', vol: .35, muted: false, rainbow: false, pieces: false, layers: '6', two: false };
+const prefs = { speed: 'normal', mood: 'auto', vol: .35, muted: false, rainbow: false, pieces: false, layers: '6', two: false, paper: 'black' };
 try { Object.assign(prefs, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch {}
 const savePrefs = () => { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch {} };
 
@@ -36,6 +40,22 @@ let layerNo = 0, moodIdx = 0, moodKey = MOOD_KEYS[0];
 let drag = null, coast = 0, handUntil = 0, sleepAt = 0, sleepMin = 0, sleeping = false;
 // your drawing, when Watch was started with "Use my drawing": its layers, its paper size and how it is scaled to fit
 let mine = null;
+// with your drawing brought along, Watch switches to its paper colour and its pens for that visit (your saved choices stay)
+let ov = {};
+const pref = k => ov[k] ?? prefs[k];
+// the paper: black (best for OLED TVs, nothing bright for hours) or your drawing's paper colour
+const paperCol = () => pref('paper') === 'mine' ? SpiroLab.paperColour() : '#000000';
+// the colours in your drawing (and your current pen), for the My pens mood
+function myPens() {
+  const seen = new Set([...SpiroLab.inkForWatch().layers.map(l => l.color), SpiroLab.S.color].map(c => c.toLowerCase()));
+  return [...seen];
+}
+// a colour that shows on the paper: if a mood colour is too close to the paper, a darker or lighter version of it
+function shows(col) {
+  const bg = paperCol(), lum = c => luminance(c), d = Math.abs(lum(col) - lum(bg));
+  if (d > .28) return col;
+  return mixHex(col, lum(bg) > .5 ? '#000000' : '#ffffff', .45);
+}
 const rings = [SpiroLab.ringCache(), SpiroLab.ringCache()];   // the pieces' rings, cached like on the main paper
 
 // Every session has a code: the seed of its own random numbers, so a lovely run can be replayed
@@ -61,9 +81,9 @@ function layout() {
 
 // ---------- composing a layer ----------
 function compose(spot) {
-  if (prefs.mood === 'auto') { if (layerNo % MOOD_EVERY === 0 && layerNo) moodKey = MOOD_KEYS[++moodIdx % MOOD_KEYS.length]; }
-  else moodKey = prefs.mood;
-  const pal = MOODS[moodKey], small = spot.reach / REACH;
+  if (pref('mood') === 'auto') { if (layerNo % MOOD_EVERY === 0 && layerNo) moodKey = MOOD_KEYS[++moodIdx % MOOD_KEYS.length]; }
+  else moodKey = pref('mood');
+  const pal = moodKey === 'mypens' ? myPens() : MOODS[moodKey], small = spot.reach / REACH, light = luminance(paperCol()) > .5;
   for (let tries = 0; tries < 400; tries++) {
     const ringNo = rng() < .5 ? 0 : 1, outside = rng() < .35, wheel = WHEELS[Math.floor(rng() * WHEELS.length)];
     const holes = holesFor(wheel, 16), T = outside ? RINGS[ringNo].outer : RINGS[ringNo].inner;
@@ -85,10 +105,10 @@ function compose(spot) {
     if (dur < 25 * small || G.laps > 30) continue;
     const boost = Math.max(1, dur / (150 * small));
     const pen = moodKey === 'metallic' ? 'metallic' : pickW(PEN_MIX), rainbowLuck = rng() < .12;
-    Object.assign(L, { pen, color: pal[layerNo % pal.length], rainbow: prefs.rainbow || (moodKey !== 'metallic' && rainbowLuck), width: PEN_STYLES[pen].w * 1.3 });
+    Object.assign(L, { pen, color: shows(pal[layerNo % pal.length]), rainbow: prefs.rainbow || (moodKey !== 'metallic' && rainbowLuck), width: PEN_STYLES[pen].w * 1.3 });
     const t = trace(L), xy = Array.from(t.pts); xy.push(t.pts[0], t.pts[1]);   // closed: point N repeats point 0
     layerNo++;
-    return { L, G, N: t.N, plan: buildPlan(L, xy, false, t.N / G.laps), th: 0, drawn: 0, age: 0, boost, lucky: rainbowLuck && moodKey !== 'metallic' };
+    return { L, G, N: t.N, plan: buildPlan(L, xy, light, t.N / G.laps), th: 0, drawn: 0, age: 0, boost, lucky: rainbowLuck && moodKey !== 'metallic' };
   }
   return null;
 }
@@ -186,7 +206,7 @@ function frame(now) {
   if (!paused && !asking) step(dt);
   // a very slow drift, so nothing sits still on an OLED for long (whole pixels, so the pieces' cache holds)
   const t = now / 1000, dx = Math.round(Math.sin(t / 83) * 10 * dpr), dy = Math.round(Math.cos(t / 127) * 10 * dpr);
-  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.fillStyle = paperCol(); ctx.fillRect(0, 0, cv.width, cv.height);
   if (sleeping) return;
   if (fading) {
     const f = (clock - fading.start) / FADE_S;
@@ -199,7 +219,7 @@ function frame(now) {
   dim = 0;
   if (sleepAt && now > sleepAt) {
     dim = Math.min(1, (now - sleepAt) / SLEEP_FADE_MS);
-    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = ease(dim); ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1;
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = ease(dim); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.globalAlpha = 1;
     if (dim >= 1) { sleeping = true; setPaused(true, true); quietKeep(); }
   }
 }
@@ -247,13 +267,22 @@ function wake() {
 root.addEventListener('pointermove', wake); root.addEventListener('pointerdown', wake);
 function group(sel, attr, keyName) {
   const btns = [...document.querySelectorAll(`${sel} [${attr}]`)];
-  const sync = () => btns.forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute(attr) === prefs[keyName])));
-  btns.forEach(b => b.addEventListener('click', () => { prefs[keyName] = b.getAttribute(attr); sync(); savePrefs(); if (keyName === 'mood' && prefs.mood !== 'auto') moodKey = prefs.mood; }));
-  sync();
+  const sync = () => btns.forEach(b => b.setAttribute('aria-pressed', String(b.getAttribute(attr) === pref(keyName))));
+  btns.forEach(b => b.addEventListener('click', () => {
+    prefs[keyName] = b.getAttribute(attr); delete ov[keyName]; sync(); savePrefs();
+    if (keyName === 'mood' && prefs.mood !== 'auto') moodKey = prefs.mood;
+    if (keyName === 'paper') repaintLive();
+  }));
+  sync(); syncs.push(sync);
 }
+const syncs = [];
 group('#wSpeed', 'data-speed', 'speed');
 group('#wMood', 'data-mood', 'mood');
 group('#wLayers', 'data-layers', 'layers');
+group('#wPaper', 'data-paper', 'paper');
+const syncAll = () => syncs.forEach(f => f());
+// a new paper colour: the line being drawn is redrawn so its ink suits the paper (finished layers keep theirs)
+function repaintLive() { slots.forEach((s, i) => { if (!s) return; s.L.color = shows(s.L.color); s.plan = buildPlan(s.L, s.plan.xy, luminance(paperCol()) > .5, s.N / s.G.laps); clear(lives[i]); drawRange(lives[i].getContext('2d'), s, 0, s.drawn); }); }
 const vol = $('#wVol'), muteBtn = $('#wMute'), pauseBtn = $('#wPause');
 const syncSound = () => { vol.value = prefs.vol; vol.style.setProperty('--fill', prefs.vol * 100 + '%'); muteBtn.setAttribute('aria-pressed', String(prefs.muted)); muteBtn.setAttribute('aria-label', prefs.muted ? 'Unmute clicks' : 'Mute clicks'); };
 vol.addEventListener('input', () => { prefs.vol = +vol.value; prefs.muted = false; syncSound(); savePrefs(); });
@@ -327,7 +356,7 @@ async function keepAs(how, quiet = false) {
   const layers = asCanvasLayers(list), n = plural(list.length);
   markKept(list);
   if (how === 'add') { SpiroLab.adoptAdd(layers); if (!quiet) toast(`Added ${n} to your ${mine ? 'drawing' : 'canvas'}. ⌘Z there takes them off again.`); return; }
-  const name = await SpeiraBook.saveNew(how === 'copy' ? SpiroLab.watchCopy(layers) : SpiroLab.watchDoc(layers));
+  const name = await SpeiraBook.saveNew(how === 'copy' ? SpiroLab.watchCopy(layers, paperCol()) : SpiroLab.watchDoc(layers, paperCol()));
   toast(how === 'copy' ? `Saved a copy of your drawing with ${n} as “${name}”` : `Saved ${n} as “${name}” in My drawings`);
 }
 const keepChoices = () => mine
@@ -348,7 +377,7 @@ const codeIn = $('#wCode');
 function restart(s) {
   runJobs(); seed = s >>> 0; rng = mulberry(seed);
   finished = []; slots = [null]; fading = null; next = null; coast = 0; layerNo = 0;
-  moodIdx = Math.floor(rng() * MOOD_KEYS.length); moodKey = prefs.mood === 'auto' ? MOOD_KEYS[moodIdx] : prefs.mood;
+  moodIdx = Math.floor(rng() * MOOD_KEYS.length); moodKey = pref('mood') === 'auto' ? MOOD_KEYS[moodIdx] : pref('mood');
   for (const c of [base, fadeCv, ...lives]) clear(c);
   drawMine(base.getContext('2d'));
   codeIn.value = toCode(seed);
@@ -400,11 +429,11 @@ function show() {
 // Every visit starts fresh. With something on the canvas, Watch first asks whether to bring it along.
 async function enter() {
   if (on) return;
-  mine = null; show(); restart(Math.floor(Math.random() * 2 ** 30)); setPaused(false);
+  mine = null; ov = {}; syncAll(); show(); restart(Math.floor(Math.random() * 2 ** 30)); setPaused(false);
   if (SpiroLab.inkForWatch().layers.length) {
     const v = await ask('Start fresh, or watch Speira carry on your drawing?', [['Start fresh', 'fresh', true], ['Use my drawing', 'mine'], ['Cancel', null]]);
     if (!v) { close(); return; }
-    if (v === 'mine') { mine = bringMine(); restart(seed); toast('Your layers stay; only the ones Speira adds come and go'); }
+    if (v === 'mine') { mine = bringMine(); ov = { paper: 'mine', mood: 'mypens' }; syncAll(); restart(seed); toast('Your paper and pens: your layers stay, only the ones Speira adds come and go'); }
   }
 }
 function close() {
