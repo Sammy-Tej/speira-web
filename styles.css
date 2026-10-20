@@ -257,7 +257,7 @@ body.dragging-layer, body.dragging-layer * { cursor: grabbing !important; user-s
 @media (prefers-reduced-motion: reduce) { .fold .chev { transition: none; } }
 .draghint { color: var(--faint); font-size: 11px; align-self: center; }
 
-/* Just watch: full screen, true black, controls only while the mouse moves */
+/* Unwind: full screen, true black, controls only while the mouse moves */
 .watch { position: fixed; inset: 0; z-index: 100; background: #000; cursor: none; color-scheme: dark;
   --text: #e7eaee; --dim: #9aa3af; --faint: #7a8390; --accent: #93a6ff; --line: #2a3039; color: var(--text); }
 .watch.awake { cursor: auto; }
@@ -470,7 +470,7 @@ body.rulers .setkinds { top: 72px; }
 .stage:has(.setbar > *) #toast { top: 54px; z-index: 7; }
 body.rulers .stage:has(.setbar > *) #toast { top: 74px; }
 
-/* Just watch questions (start fresh or use my drawing, keep, leave) */
+/* Unwind questions (start fresh or use my drawing, keep, leave) */
 .watch.asking { cursor: default; }
 .wask-btns { display: flex; flex-direction: column; gap: 8px; }
 .wkeep .wtog.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }

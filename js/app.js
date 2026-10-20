@@ -22,7 +22,7 @@ const layerFrom = s => ({ id: uid++, ...s, a: 0, b: 0, pos: 0, visible: true });
 const newLayer = () => layerFrom(S);
 const inked = L => L && L.b - L.a > 1e-6;
 const strip = L => { const { _tr, _key, _plan, _pk, _xy, _box, _bk, ...rest } = L; return rest; };
-// withBg: also remember the paper colour (only for steps that change it, like keeping a Just watch picture)
+// withBg: also remember the paper colour (only for steps that change it, like keeping a Unwind picture)
 const twoData = () => other ? { two: { S: { ...other.S }, cur: strip(other.cur), idx: other.idx }, ai: activeIdx } : {};
 function setTwo(o) { other = o && o.two ? { S: { ...o.two.S }, cur: { ...o.two.cur }, idx: o.two.idx, playing: false, rpQueue: [], rpN: 0 } : null; activeIdx = other ? (o.ai ?? 0) : 0; otherRing.key = ''; }
 const allIds = () => [...layers.map(l => l.id + 1), cur ? cur.id + 1 : 1, other ? other.cur.id + 1 : 1];
@@ -143,7 +143,7 @@ function actualSize() {
 }
 // Auto-centre (View menu, on by default): when the window changes size the paper goes back to the middle
 new ResizeObserver(() => { if (P.autoCentre !== false) cam.x = cam.y = 0; fit(); }).observe(cv.parentElement);
-// paper (world) ⇄ screen. screen = origin + scale × rotation × world. A view without ca/sa (Just watch, video) is unrotated.
+// paper (world) ⇄ screen. screen = origin + scale × rotation × world. A view without ca/sa (Unwind, video) is unrotated.
 const vT = (c, v = view) => { const ca = v.ca ?? 1, sa = v.sa ?? 0; c.setTransform(v.s * ca, v.s * sa, -v.s * sa, v.s * ca, v.ox, v.oy); };
 const invV = (v, x, y) => { const ca = v.ca ?? 1, sa = v.sa ?? 0, dx = x - v.ox, dy = y - v.oy; return [(ca * dx + sa * dy) / v.s, (-sa * dx + ca * dy) / v.s]; };
 const devToWorld = (x, y) => invV(view, x, y);
@@ -210,7 +210,7 @@ function gearPath(c, x, y, teeth, R, h, phase, tipOut) {
   c.closePath();
 }
 // Paint one acrylic piece: soft shadow on the paper (outside the piece only), tinted body, sheen, bevelled edge.
-// v: the view to draw in (the main paper's by default; Just watch passes its own)
+// v: the view to draw in (the main paper's by default; Unwind passes its own)
 function acrylic(c, shape, rgb, cx, cy, R, glow, v = view) {
   const [r, g, b] = rgb, px = v.dpr / v.s;
   c.save();
@@ -240,7 +240,7 @@ function printed(c, text, x, y, size, rot, rgb, alpha = .75) {
   c.restore();
 }
 // The ring never moves while drawing, so it is painted once into its own layer and reused.
-// A ring cache is { cv, key }: one for the main paper, one for Just watch.
+// A ring cache is { cv, key }: one for the main paper, one for Unwind.
 const ringCache = () => ({ cv: document.createElement('canvas'), key: '' });
 const mainRing = ringCache();
 // A bar's outline: teeth all the way round the stadium-shaped edge, following its pitch line
@@ -320,7 +320,7 @@ function drawStencil(c, L, v = view, ring = mainRing, glow = hoverWheel || (drag
   const G = geom(L), w = wheelAt(G, L, L.pos), h = G.p * .55, px = v.dpr / v.s, rgb = TINTS[P.tint][1];
   paintRing(L, G, v, ring, c.canvas.width, c.canvas.height);
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(ring.cv, 0, 0); c.restore();
-  vT(c, v);   // the wheel is drawn in this view's world units (Just watch has its own view)
+  vT(c, v);   // the wheel is drawn in this view's world units (Unwind has its own view)
   const phase = w.spin + (G.inside ? 0 : Math.PI) + Math.PI / G.t;
   acrylic(c, () => gearPath(c, w.wx, w.wy, G.t, G.rr, h, phase, true), rgb, w.wx, w.wy, G.rr, glow, v);
   const holeR = G.p * .17, holeScreen = holeR / px, spacingScreen = G.p * .42 / px;
@@ -379,7 +379,7 @@ let lastT = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(.05, (now - lastT) / 1000); lastT = now;
-  if (document.body.classList.contains('watching')) return;   // Just watch has the screen; the drawing waits
+  if (document.body.classList.contains('watching')) return;   // Unwind has the screen; the drawing waits
   if (!cv.width || !cv.height) { fit(); if (!cv.width || !cv.height) return; }
   if (playing) advance(P.speed * TAU * dt);
   if (other && other.playing) advanceOther(P.speed * TAU * dt);
@@ -1369,8 +1369,8 @@ if (!load()) cur = newLayer();
 if (!savedHash && !layers.length && !inked(cur)) savedHash = docHash();
 syncControls(); fit(); dirty();
 requestAnimationFrame(frame);
-// Just watch "Keep": its layers become this drawing, on black paper, centred; one ⌘Z brings back what was here
-// Just watch "Keep": its layers, centred on this paper
+// Unwind "Keep": its layers become this drawing, on black paper, centred; one ⌘Z brings back what was here
+// Unwind "Keep": its layers, centred on this paper
 function watchLayers(list) {
   const dx = PW() / 2 - 500, dy = PH() / 2 - 500;
   return list.map(L => ({ ...pickS({ ...S, ...L }), autoShift: 0, cx: L.cx + dx, cy: L.cy + dy, id: uid++, a: L.a, b: L.b, pos: L.b, visible: true }));
@@ -1381,7 +1381,7 @@ function adoptAdd(list) { stop(); remember(); layers = [...layers, ...(inked(cur
 const watchDoc = (list, bg = '#000000') => ({ layers: watchLayers(list), cur: strip(newLayer()), paper: P.paper, bg });
 // keep, option 3 (Watch was started with your drawing): a copy of your drawing with them on top, on black like in Watch
 const watchCopy = (list, bg = '#000000') => ({ layers: [...visibleInk().map(L => ({ ...strip(L), visible: true })), ...watchLayers(list)], cur: strip(newLayer()), paper: P.paper, bg });
-// what Just watch needs to bring your drawing along: every visible line, and the paper's size
+// what Unwind needs to bring your drawing along: every visible line, and the paper's size
 const inkForWatch = () => ({ layers: visibleInk().map(strip), W: PW(), H: PH() });
 
 // ---------- opening, starting and saving drawings (the Sketchbook calls these) ----------

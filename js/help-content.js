@@ -124,12 +124,12 @@ const HELP = [
     ]
   },
   {
-    id: 'watch', title: 'Just watch', summary: 'Sit back while Speira draws by itself.',
+    id: 'watch', title: 'Unwind', summary: 'Sit back while Speira draws by itself.',
     items: [
-      ['Start', 'Press <b>Watch</b> (or <kbd>W</kbd>). Speira fills the screen and composes patterns on its own, forever, on black. Every visit starts with a fresh sheet.'],
-      ['Bring your drawing', 'If there is a drawing on your canvas, Watch asks first: <b>Start fresh</b>, or <b>Use my drawing</b>. With your drawing, Speira adds its layers on top; your own layers stay put and never fade.'],
-      ['Paper and colours', 'Watch draws on black, which suits TVs best. <b>Paper</b> → <b>My paper</b> uses your drawing\'s paper colour instead. Colour moods include three from the Speira palette (Kaleidoscope, Jewels, Earth) and <b>My pens</b>, the colours in your drawing. If a colour would barely show on the paper, Watch makes it a little darker or lighter. Watch always chooses its own pen types.'],
-      ['Your drawing\'s look', 'When you bring your drawing along, Watch switches to your paper and your pens for that visit. Your saved choices come back next time.'],
+      ['Start', 'Press <b>Unwind</b> (or <kbd>W</kbd>). Speira fills the screen and composes patterns on its own, forever, on black. Every visit starts with a fresh sheet.'],
+      ['Bring your drawing', 'If there is a drawing on your canvas, Unwind asks first: <b>Start fresh</b>, or <b>Use my drawing</b>. With your drawing, Speira adds its layers on top; your own layers stay put and never fade.'],
+      ['Paper and colours', 'Unwind draws on black, which suits TVs best. <b>Paper</b> → <b>My paper</b> uses your drawing\'s paper colour instead. Colour moods include three from the Speira palette (Kaleidoscope, Jewels, Earth) and <b>My pens</b>, the colours in your drawing. If a colour would barely show on the paper, Watch makes it a little darker or lighter. Watch always chooses its own pen types.'],
+      ['Your drawing\'s look', 'When you bring your drawing along, Unwind switches to your paper and your pens for that visit. Your saved choices come back next time.'],
       ['Layers come and go', 'Up to six of Speira\'s layers build up (fewer if you choose), then the oldest fades as each new one starts.'],
       ['Two at once', '<b>Two at once</b> (or <kbd>T</kbd>) draws two patterns side by side. They never overlap.'],
       ['Controls', 'Move the mouse to see them: speed, colour mood, rainbow ink, show the pieces, two at once, layers on screen, click volume, pause, next layer and leave.'],
@@ -160,7 +160,7 @@ const HELP = [
       ['Rulers and guides', '<kbd>⌃</kbd><kbd>⌘</kbd><kbd>R</kbd> rulers · <kbd>⌘</kbd><kbd>;</kbd> guides · <kbd>⌥</kbd><kbd>⌘</kbd><kbd>;</kbd> lock guides · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>;</kbd> snapping · <kbd>⌃</kbd> while dragging: no snapping · <kbd>⌘</kbd><kbd>\'</kbd> grid'],
       ['Panels', '<kbd>⌃</kbd><kbd>⌘</kbd><kbd>I</kbd> info bar · <kbd>⌃</kbd><kbd>⌘</kbd><kbd>P</kbd> hide panel · <kbd>⌃</kbd><kbd>H</kbd> hide everything (<kbd>Esc</kbd> to bring back)'],
       ['Files', '<kbd>⌘</kbd><kbd>S</kbd> save · <kbd>⌘</kbd><kbd>O</kbd> Sketchbook · <kbd>N</kbd> new canvas · <kbd>⌘</kbd><kbd>E</kbd> export · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>E</kbd> export again · <kbd>⌘</kbd><kbd>Z</kbd> undo · <kbd>⇧</kbd><kbd>⌘</kbd><kbd>Z</kbd> redo · <kbd>⌘</kbd><kbd>V</kbd> paste a recipe'],
-      ['Elsewhere', '<kbd>W</kbd> Just watch (<kbd>T</kbd> two at once inside it) · <kbd>?</kbd> this Help']
+      ['Elsewhere', '<kbd>W</kbd> Unwind (<kbd>T</kbd> two at once inside it) · <kbd>?</kbd> this Help']
     ]
   }
 ];

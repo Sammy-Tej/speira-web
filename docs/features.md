@@ -100,7 +100,7 @@ The native apps (iPad, Mac, TV) only have the very first screen so far, so this 
 | Export again with the same settings | Built |
 | PDF export, print, copy to clipboard | Planned (phase 4) |
 
-## 9. Just watch
+## 9. Unwind
 | Feature | Status |
 |---|---|
 | Speira composes and draws by itself, forever, full screen | Built |

@@ -90,7 +90,7 @@ async function save() {
   L.toast(`Saved “${rec.name}” in ${folderName(rec.folder)}`); render();
   return rec.name;
 }
-// a drawing made elsewhere (Just watch, an opened file): straight into the Sketchbook without opening it
+// a drawing made elsewhere (Unwind, an opened file): straight into the Sketchbook without opening it
 async function saveNew(data, name = L.canvasName(), folder = 'mine') {
   name = uniqueName(name);
   const now = Date.now(), rec = { id: uid(), name, folder, created: now, modified: now, deletedAt: null, thumb: L.thumbnail(data), data };

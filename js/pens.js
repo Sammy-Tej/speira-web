@@ -146,7 +146,7 @@ function drawPlan(c, plan, opacity) {
   c.restore();
 }
 
-// Draw only points i0..i1 of a plan, for drawings that grow over time (Just watch, the video export).
+// Draw only points i0..i1 of a plan, for drawings that grow over time (Unwind, the video export).
 // Each op keeps a cursor (_r) so this stays cheap as the line gets long; resetPlanCursors() before starting over.
 // Translucent passes use butt caps so the joins between steps never show as beads.
 function resetPlanCursors(plan) { for (const o of plan.ops) o._r = 0; }

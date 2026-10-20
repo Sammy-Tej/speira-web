@@ -1,6 +1,6 @@
-// Just watch: Speira composes and draws by itself, full screen, forever.
+// Unwind: Speira composes and draws by itself, full screen, forever.
 // Up to six layers build up; after that the oldest fades out while each new one draws.
-// Every visit starts fresh. Pressing Watch with a drawing on the canvas asks whether to bring it along: its layers
+// Every visit starts fresh. Pressing Unwind with a drawing on the canvas asks whether to bring it along: its layers
 // then sit underneath and never fade. Leaving asks whether to keep what Speira drew. With "Two at once", two
 // patterns grow side by side and never overlap. Proving ground for the Apple TV app.
 (() => {
@@ -38,9 +38,9 @@ const fadeCv = mk(), lives = [mk(), mk()];    // fadeCv: the layer fading out; l
 let finished = [], slots = [null], fading = null, jobs = [];
 let layerNo = 0, moodIdx = 0, moodKey = MOOD_KEYS[0];
 let drag = null, coast = 0, handUntil = 0, sleepAt = 0, sleepMin = 0, sleeping = false;
-// your drawing, when Watch was started with "Use my drawing": its layers, its paper size and how it is scaled to fit
+// your drawing, when Unwind was started with "Use my drawing": its layers, its paper size and how it is scaled to fit
 let mine = null;
-// with your drawing brought along, Watch switches to its paper colour and its pens for that visit (your saved choices stay)
+// with your drawing brought along, Unwind switches to its paper colour and its pens for that visit (your saved choices stay)
 let ov = {};
 const pref = k => ov[k] ?? prefs[k];
 // the paper: black (best for OLED TVs, nothing bright for hours) or your drawing's paper colour
@@ -426,7 +426,7 @@ function show() {
   const req = root.requestFullscreen || root.webkitRequestFullscreen;
   if (req) try { const p = req.call(root); if (p && p.catch) p.catch(() => {}); } catch {}
 }
-// Every visit starts fresh. With something on the canvas, Watch first asks whether to bring it along.
+// Every visit starts fresh. With something on the canvas, Unwind first asks whether to bring it along.
 async function enter() {
   if (on) return;
   mine = null; ov = {}; syncAll(); show(); restart(Math.floor(Math.random() * 2 ** 30)); setPaused(false);

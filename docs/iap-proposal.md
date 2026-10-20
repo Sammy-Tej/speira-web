@@ -9,11 +9,11 @@ A draft for Sam to read and react to, 16/10/26. Nothing is decided yet. The open
   - Shape Studio;
   - **Layout Tools** (rulers, guides, grid, snapping, canvas sheet, Repeat, two sets);
   - **Export Pro** (SVG for plotters, video up to 4K, CMYK later);
-  - Watch+.
+  - Unwind+.
 - **Prices:** around **£1.99** per pack, with £1.99–£4.99 acceptable. Everything is priced so it's clearly the best deal.
 - **Try before you buy for every pack**: try it on the paper, decide when you save or export.
 - **1.0 ships with two packs on sale: More Pieces and Fancy Pens.** The other packs arrive in **1.1**, along with the tip jar.
-- **The Apple TV app is free and includes the core Just watch.** Just watch may be renamed (Zen mode or similar).
+- **The Apple TV app is free and includes the core Unwind.** Just watch is now called Unwind (Sam, 17/10/26).
 
 ---
 
@@ -22,15 +22,15 @@ A draft for Sam to read and react to, 16/10/26. Nothing is decided yet. The open
 Speira is for four kinds of people at once:
 - **Beginners** trying illustration for the first time.
 - **Scribblers** passing the time.
-- **Background watchers** who leave Just watch running.
+- **Background watchers** who leave Unwind running.
 - **Geeks** who want every number and export option.
 
 The money side has to suit all four:
 
-1. **The free app is complete, not a demo.** Your 1.0 list is a whole kit: rings, wheels, pens, paper, layers, Sketchbook, PNG and JPG export, and Just watch. Someone who never pays should still love it.
+1. **The free app is complete, not a demo.** Your 1.0 list is a whole kit: rings, wheels, pens, paper, layers, Sketchbook, PNG and JPG export, and Unwind. Someone who never pays should still love it.
 2. **Pay once, own it forever.** No subscriptions. Speira works offline and costs you nothing per user to run (iCloud is Apple's), so a subscription would feel like rent for nothing new.
 3. **No ads, ever, and no tracking.** This keeps kids' mode simple and keeps the App Store privacy label clean ("Data Not Collected").
-4. **Never interrupt drawing or watching.** The shop is something you visit. It never pops up in the middle of a pattern, and never appears in Just watch or on Apple TV while it plays.
+4. **Never interrupt drawing or watching.** The shop is something you visit. It never pops up in the middle of a pattern, and never appears in Unwind or on Apple TV while it plays.
 5. **Buy once, use everywhere.** A purchase on iPad unlocks the same thing on Mac and Apple TV (Apple's "Universal Purchase"), and it's shared with family (Family Sharing).
 
 ---
@@ -59,7 +59,7 @@ Every pack is a **non-consumable** in-app purchase: bought once, restorable on e
 | **Fancy Pens** | Metallic and glitter, plus future special pens (neon, chalk, ink wash…) | Scribblers, beginners | £1.99 / $1.99 |
 | **Shape Studio** | Make your own shapes, the My shapes folder, inner edges for your shapes | Makers, kids with grown-ups, geeks | £3.99 / $3.99 |
 | **Studio Tools** | New canvas sheet (any size, DPI, colour profiles, later CMYK), SVG export (with pen effects or plain lines for plotters and cutters), video export up to 4K, rulers, guides, grid and snapping, recipes, Repeat, two sets at once | Geeks, designers, printers, plotter owners | £4.99 / $4.99 |
-| **Watch+** | Just watch extras: two at once, all colour moods (including Kaleidoscope, Jewels, Earth, My pens), "Use my drawing", layers on screen, session codes for sharing. On Apple TV: the same | Background watchers | £2.99 / $2.99 |
+| **Unwind+** | Unwind extras: two at once, all colour moods (including Kaleidoscope, Jewels, Earth, My pens), "Use my drawing", layers on screen, session codes for sharing. On Apple TV: the same | Background watchers | £2.99 / $2.99 |
 | **Everything** | All five packs, now and future, at a discount | Fans, and anyone who hates choosing | £9.99 / $9.99 (separately: £16.95) |
 
 **Notes:**
@@ -80,7 +80,7 @@ These are Sam's 1.0 list:
 - **View:** zoom, pan, turn, full screen, hide panels.
 - **Files:** all of the Sketchbook and files.
 - **Export:** PNG (with see-through) and JPG.
-- **Just watch:** the core (it draws forever, black paper, Auto mood, bedtime fade).
+- **Unwind:** the core (it draws forever, black paper, Auto mood, bedtime fade).
 - **Comfort:** Help, light/dark, piece colours, keyboard shortcuts, touch and Pencil comfort.
 
 **Rule of thumb:** anything that makes the *first ten minutes* good is free. Anything you go looking for once you're hooked is a pack.
@@ -94,7 +94,7 @@ People buy what they've already enjoyed, so locked features should be **visible 
 - **Try on the paper.** Locked pieces and pens can be picked and used on the canvas. A small padlock badge sits on them.
 - **The moment it matters.** Only when you **save or export** a drawing that uses a locked item does a calm sheet appear: "This drawing uses Fancy Pens. Unlock them for £1.99, or keep drawing and decide later." Choosing "later" keeps the drawing, which can still be saved, without the locked layers in its export.
   - *Alternative (simpler, also common):* exports of locked items get a small "Speira" watermark until unlocked. I prefer the first option; watermarks feel cheap.
-- **Watch+:** extras show in the Watch menu with a padlock. Tapping one plays it for 60 seconds, then offers the unlock.
+- **Unwind+:** extras show in the Unwind menu with a padlock. Tapping one plays it for 60 seconds, then offers the unlock.
 - **Studio Tools:** rulers and guides work fully while visible; the unlock is asked for when you **export** SVG or video, or **save** a custom canvas.
 
 ---
@@ -128,9 +128,9 @@ People buy what they've already enjoyed, so locked features should be **visible 
 
 - **Universal Purchase:** one App Store record covers iPad, Mac and Apple TV, so packs bought on one work on all of them. This is set up when we create the App Store record, so it has to be decided **before 1.0 launches**.
 - **Apple TV:**
-  - The shop exists but is small: the Watch+ unlock and "Restore".
-  - The free Apple TV app shows the core Just watch.
-  - Watch+ unlocks the extras there too.
+  - The shop exists but is small: the Unwind+ unlock and "Restore".
+  - The free Apple TV app shows the core Unwind.
+  - Unwind+ unlocks the extras there too.
 - **Mac:** identical packs. Studio Tools shines most on Mac (rulers, guides, SVG for plotters).
 
 ---
@@ -140,7 +140,7 @@ People buy what they've already enjoyed, so locked features should be **visible 
 | When | What |
 |---|---|
 | **1.0 launch** | Free core plus **two packs ready**: **More Pieces** and **Fancy Pens**. Both are already built and proven on the web, so they bring income from day one without delaying launch. **Everything** is also on sale ("all future packs included") for early fans. |
-| **1.1 / 1.2** | **Studio Tools** and **Watch+** arrive as their features land on iPad. People who bought Everything get them automatically. |
+| **1.1 / 1.2** | **Studio Tools** and **Unwind+** arrive as their features land on iPad. People who bought Everything get them automatically. |
 | **2.0** | **Shape Studio** (with make your own shapes), Mac and Apple TV. Universal Purchase means existing buyers have them on every device on day one. |
 | **Later** | An optional **tip jar** ("Buy Sam a coffee") for people who want to give more. Seasonal free **colour moods** to keep people coming back. |
 
@@ -174,4 +174,4 @@ The real figures will differ. The point is that **Everything** carries a lot of 
 4. **Launch packs:** launch 1.0 with More Pieces and Fancy Pens (recommended), or launch completely free and add packs in 1.1?
 5. **Prices:** happy with £1.99–£4.99 per pack and £9.99 for Everything, and a dated early-supporter price?
 6. **Tip jar:** yes later, or never?
-7. **Watch on Apple TV:** should the free TV app include the core Just watch (recommended), or should the TV app itself be a purchase?
+7. **Watch on Apple TV:** should the free TV app include the core Unwind (recommended), or should the TV app itself be a purchase?
